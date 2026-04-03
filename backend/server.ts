@@ -2,6 +2,7 @@
 import 'dotenv/config';
 import fastify from 'fastify';
 import cookie from '@fastify/cookie';
+import cors from '@fastify/cors';
 import studentRoutes from './routes/students';
 import courseRoutes from './routes/course';
 import gradesRoutes from './routes/grades';
@@ -14,6 +15,10 @@ import authRoutes from './routes/auth';
 const app = fastify({ logger: true });
 
 // register plugins
+app.register(cors, {
+  origin: true, // Allow all origins (use specific URL in production)
+  credentials: true,
+});
 app.register(cookie);
 
 app.register(studentRoutes);

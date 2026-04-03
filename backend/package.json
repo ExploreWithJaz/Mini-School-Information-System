@@ -7,7 +7,7 @@
     "dev": "nodemon --exec tsx server.ts",
     "start": "tsx server.ts",
     "seed": "tsx seed.ts",
-  "reset": "tsx reset-seed.ts"
+    "reset": "tsx reset-seed.ts"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +15,7 @@
   "description": "",
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^11.2.0",
     "bcrypt": "^6.0.0",
     "dotenv": "^17.4.0",
     "fastify": "^5.8.4",
