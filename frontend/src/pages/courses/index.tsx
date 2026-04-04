@@ -207,7 +207,7 @@ export default function Courses() {
 
   return (
     <main className='min-h-screen bg-slate-50 p-6 md:p-8'>
-      <div className='mx-auto max-w-6xl space-y-6'>
+      <div className='mx-auto space-y-6'>
         <header className='flex flex-col gap-4 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200 md:flex-row md:items-center md:justify-between'>
           <div>
             <h1 className='text-2xl font-semibold text-slate-900'>Courses</h1>

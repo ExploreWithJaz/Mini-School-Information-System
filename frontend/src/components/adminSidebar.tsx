@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation'
 const NAV_ITEMS = [
   { label: 'Dashboard', section: 'main' },
   { label: 'Students', section: 'main' },
-  { label: 'Faculty', section: 'main' },
   { label: 'Courses', section: 'main' },
+  { label: 'Subjects', section: 'main' },
   { label: 'Users', section: 'management' },
   { label: 'Reports', section: 'management' },
   { label: 'Settings', section: 'management' }

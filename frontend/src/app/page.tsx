@@ -9,6 +9,7 @@ import AdminDashboard from '../pages/adminDashboard/index'
 import Enrollment from '../pages/enrollment/index'
 import Students from '../pages/students/index'
 import Courses from '@/pages/courses'
+import Subjects from '@/pages/subjects'
 
 function Page() {
   const { user, isAuthenticated, loading } = useAuth()
@@ -39,6 +40,8 @@ function Page() {
           return <Students />
         case 'Courses':
           return <Courses />
+        case 'Subjects':
+          return <Subjects />
         case 'Dashboard':
         default:
           return <AdminDashboard />
