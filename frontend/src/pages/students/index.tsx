@@ -143,6 +143,16 @@ export default function Students() {
             <option value='3'>Bachelor of Science in Information Technology</option>
           </select>
         </div>
+        <div className='flex flex-col'>
+          <label className='block text-sm font-medium text-gray-700 mb-2'>Filter by Course</label>
+          <button
+            type='button'
+            onClick={() => router.push('/students/add')}
+            className='px-4 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer'
+          >
+            Add Student
+          </button>
+        </div>
       </div>
 
       <div className='bg-white rounded-xl border border-gray-100 overflow-hidden'>
@@ -199,12 +209,12 @@ export default function Students() {
                           Active
                         </span>
                       </td>
-                      <td className='px-6 py-4 text-center'>
-                        <button
-                          onClick={() => handleViewStudent(student.id)}
-                          className='inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg border border-indigo-200 transition-all'
-                        >
-                          View Profile
+                      <td className='px-6 py-4 text-center flex flex-row items-center justify-center gap-2'>
+                        <button className='bg-blue-300 p-0.5 rounded-sm cursor-pointer'>
+                          <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#2854C5"><path d="M216-216h51l375-375-51-51-375 375v51Zm-72 72v-153l498-498q11-11 23.84-16 12.83-5 27-5 14.16 0 27.16 5t24 16l51 51q11 11 16 24t5 26.54q0 14.45-5.02 27.54T795-642L297-144H144Zm600-549-51-51 51 51Zm-127.95 76.95L591-642l51 51-25.95-25.05Z"/></svg>
+                        </button>
+                        <button className='bg-red-300 p-0.5 rounded-sm cursor-pointer'>
+                          <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#8C1A10"><path d="M312-144q-29.7 0-50.85-21.15Q240-186.3 240-216v-480h-48v-72h192v-48h192v48h192v72h-48v479.57Q720-186 698.85-165T648-144H312Zm336-552H312v480h336v-480ZM384-288h72v-336h-72v336Zm120 0h72v-336h-72v336ZM312-696v480-480Z"/></svg>
                         </button>
                       </td>
                     </tr>
