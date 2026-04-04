@@ -11,8 +11,12 @@ export async function apiCall(
   const { token, ...rest } = options
 
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
     ...rest.headers,
+  }
+
+  const hasBody = rest.body !== undefined && rest.body !== null
+  if (hasBody && !(rest.body instanceof FormData) && !(headers as Record<string, string>)['Content-Type']) {
+    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
   }
 
   if (token) {
