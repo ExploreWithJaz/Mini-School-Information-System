@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/router'
 import { apiCall, API_URL } from '@/lib/api'
+import { useRouter } from 'next/navigation'
 
 interface Student {
   id: string

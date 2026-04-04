@@ -8,7 +8,7 @@ export default function AdminDashboard() {
 
   return (
     <section className='bg-[#f5f6fb] min-h-screen p-5'>
-
+      <h1>Admin Dashboard</h1>
       {/* Student Basic Information */}
       <div className='flex flex-row justify-start items-center gap-40 bg-white p-10 rounded-xl border border-gray-100 mb-5'>
         <div className='flex flex-row gap-10 items-center'>

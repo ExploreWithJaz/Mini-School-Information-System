@@ -7,11 +7,13 @@ import AdminSidebar from '@/components/adminSidebar'
 import Dashboard from '../pages/dashboard/index'
 import AdminDashboard from '../pages/adminDashboard/index'
 import Enrollment from '../pages/enrollment/index'
+import Students from '../pages/students/index'
 
 function Page() {
   const { user, isAuthenticated, loading } = useAuth()
   const router = useRouter()
   const [activePage, setActivePage] = useState('Student Profile')
+  const [adminActivePage, setAdminActivePage] = useState('Dashboard')
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -30,11 +32,24 @@ function Page() {
 
   // Render different layouts based on user role
   if (user.role === 'Admin') {
+    const renderAdminPage = () => {
+      switch (adminActivePage) {
+        case 'Students':
+          return <Students />
+        case 'Dashboard':
+        default:
+          return <AdminDashboard />
+      }
+    }
+
     return (
       <div className="h-screen flex flex-row overflow-hidden">
-        <AdminSidebar />
+        <AdminSidebar
+          activePage={adminActivePage}
+          setActivePage={setAdminActivePage}
+        />
         <main className="flex-1 h-full overflow-y-auto">
-          <AdminDashboard />
+          {renderAdminPage()}
         </main>
       </div>
     )

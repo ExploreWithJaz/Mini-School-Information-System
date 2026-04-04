@@ -1,22 +1,26 @@
 'use client'
 import { useAuth } from '@/context/authContext'
 import { useRouter } from 'next/navigation'
-import { useState } from "react"
 
 const NAV_ITEMS = [
-  { label: "Dashboard", section: "main" },
-  { label: "Students", section: "main" },
-  { label: "Faculty", section: "main" },
-  { label: "Courses", section: "main" },
-  { label: "Users", section: "management" },
-  { label: "Reports", section: "management" },
-  { label: "Settings", section: "management" },
+  { label: 'Dashboard', section: 'main' },
+  { label: 'Students', section: 'main' },
+  { label: 'Faculty', section: 'main' },
+  { label: 'Courses', section: 'main' },
+  { label: 'Users', section: 'management' },
+  { label: 'Reports', section: 'management' },
+  { label: 'Settings', section: 'management' }
 ]
 
-const AdminSidebar = () => {
+const AdminSidebar = ({
+  activePage,
+  setActivePage
+}: {
+  activePage: string
+  setActivePage: (page: string) => void
+}) => {
   const { user, logout } = useAuth()
   const router = useRouter()
-  const [activePage, setActivePage] = useState('Dashboard')
 
   const handleLogout = () => {
     logout()
@@ -41,19 +45,19 @@ const AdminSidebar = () => {
         <p className="text-[10px] font-medium uppercase tracking-widest text-gray-300 px-2 mb-1">
           Main
         </p>
-        {NAV_ITEMS.filter((i) => i.section === "main").map((item) => (
+        {NAV_ITEMS.filter((i) => i.section === 'main').map((item) => (
           <button
             key={item.label}
             onClick={() => setActivePage(item.label)}
             className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-left transition-all w-full ${
               activePage === item.label
-                ? "bg-indigo-50 text-indigo-600 font-medium"
-                : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+                ? 'bg-indigo-50 text-indigo-600 font-medium'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
             }`}
           >
             <span
               className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                activePage === item.label ? "bg-indigo-500" : "bg-gray-300"
+                activePage === item.label ? 'bg-indigo-500' : 'bg-gray-300'
               }`}
             />
             {item.label}
@@ -66,19 +70,19 @@ const AdminSidebar = () => {
         <p className="text-[10px] font-medium uppercase tracking-widest text-gray-300 px-2 mb-1">
           Management
         </p>
-        {NAV_ITEMS.filter((i) => i.section === "management").map((item) => (
+        {NAV_ITEMS.filter((i) => i.section === 'management').map((item) => (
           <button
             key={item.label}
             onClick={() => setActivePage(item.label)}
             className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-left transition-all w-full ${
               activePage === item.label
-                ? "bg-indigo-50 text-indigo-600 font-medium"
-                : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
+                ? 'bg-indigo-50 text-indigo-600 font-medium'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
             }`}
           >
             <span
               className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                activePage === item.label ? "bg-indigo-500" : "bg-gray-300"
+                activePage === item.label ? 'bg-indigo-500' : 'bg-gray-300'
               }`}
             />
             {item.label}
