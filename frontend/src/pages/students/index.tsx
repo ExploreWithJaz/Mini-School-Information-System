@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { apiCall } from '@/lib/api'
 import { useRouter } from 'next/navigation'
+import Modal from '@/components/modal'
 
 interface Student {
   id: string
@@ -27,6 +28,21 @@ interface StudentApi {
   updated_at: string
 }
 
+type CourseOption = {
+  id: string
+  code: string
+  name: string
+}
+
+type StudentForm = {
+  studentNumber: string
+  firstName: string
+  lastName: string
+  email: string
+  birthDate: string
+  courseId: string
+}
+
 export default function Students() {
   const router = useRouter()
   const [students, setStudents] = useState<Student[]>([])
@@ -40,6 +56,20 @@ export default function Students() {
   const [courseId, setCourseId] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [courses, setCourses] = useState<CourseOption[]>([])
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [editForm, setEditForm] = useState<StudentForm>({
+    studentNumber: '',
+    firstName: '',
+    lastName: '',
+    email: '',
+    birthDate: '',
+    courseId: ''
+  })
 
   const fetchStudents = async (page = 1) => {
     try {
@@ -106,10 +136,106 @@ export default function Students() {
     return Number.isNaN(parsed.getTime())
       ? 'N/A'
       : parsed.toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })
+  }
+
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const response = await apiCall('/courses')
+        setCourses(
+          (response as Array<{ id: string; code: string; name: string }>).map((course) => ({
+            id: course.id,
+            code: course.code,
+            name: course.name
+          }))
+        )
+      } catch {
+        setCourses([])
+      }
+    }
+
+    fetchCourses()
+  }, [])
+
+  const toDateInputValue = (value: string) => {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return ''
+    return date.toISOString().split('T')[0]
+  }
+
+  const openEditModal = (student: Student) => {
+    setSelectedStudent(student)
+    setEditForm({
+      studentNumber: student.studentNumber,
+      firstName: student.firstName,
+      lastName: student.lastName,
+      email: student.email,
+      birthDate: toDateInputValue(student.birthDate),
+      courseId: student.courseId
+    })
+    setIsEditOpen(true)
+  }
+
+  const openDeleteModal = (student: Student) => {
+    setSelectedStudent(student)
+    setIsDeleteOpen(true)
+  }
+
+  const handleEditStudent = async () => {
+    if (!selectedStudent) return
+
+    try {
+      setIsSaving(true)
+      setError(null)
+
+      const updated = (await apiCall(`/students/${selectedStudent.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          studentNumber: editForm.studentNumber.trim(),
+          firstName: editForm.firstName.trim(),
+          lastName: editForm.lastName.trim(),
+          email: editForm.email.trim(),
+          birthDate: editForm.birthDate,
+          courseId: editForm.courseId
         })
+      })) as Student
+
+      setStudents((prev) =>
+        prev.map((student) => (student.id === updated.id ? updated : student))
+      )
+
+      setIsEditOpen(false)
+      setSelectedStudent(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update student')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDeleteStudent = async () => {
+    if (!selectedStudent) return
+
+    try {
+      setIsDeleting(true)
+      setError(null)
+
+      await apiCall(`/students/${selectedStudent.id}`, {
+        method: 'DELETE'
+      })
+
+      setStudents((prev) => prev.filter((student) => student.id !== selectedStudent.id))
+      setIsDeleteOpen(false)
+      setSelectedStudent(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete student')
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (
@@ -138,9 +264,11 @@ export default function Students() {
             className='w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all'
           >
             <option value=''>All Courses</option>
-            <option value='1'>Bachelor of Science in Computer Science</option>
-            <option value='2'>Bachelor of Science in Electronics Engineering</option>
-            <option value='3'>Bachelor of Science in Information Technology</option>
+            {courses.map((course) => (
+              <option key={course.id} value={course.id}>
+                {course.code} - {course.name}
+              </option>
+            ))}
           </select>
         </div>
         <div className='flex flex-col'>
@@ -209,12 +337,33 @@ export default function Students() {
                           Active
                         </span>
                       </td>
-                      <td className='px-6 py-4 text-center flex flex-row items-center justify-center gap-2'>
+                      {/* <td className='px-6 py-4 text-center flex flex-row items-center justify-center gap-2'>
                         <button className='bg-blue-300 p-0.5 rounded-sm cursor-pointer'>
                           <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#2854C5"><path d="M216-216h51l375-375-51-51-375 375v51Zm-72 72v-153l498-498q11-11 23.84-16 12.83-5 27-5 14.16 0 27.16 5t24 16l51 51q11 11 16 24t5 26.54q0 14.45-5.02 27.54T795-642L297-144H144Zm600-549-51-51 51 51Zm-127.95 76.95L591-642l51 51-25.95-25.05Z"/></svg>
                         </button>
                         <button className='bg-red-300 p-0.5 rounded-sm cursor-pointer'>
                           <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#8C1A10"><path d="M312-144q-29.7 0-50.85-21.15Q240-186.3 240-216v-480h-48v-72h192v-48h192v48h192v72h-48v479.57Q720-186 698.85-165T648-144H312Zm336-552H312v480h336v-480ZM384-288h72v-336h-72v336Zm120 0h72v-336h-72v336ZM312-696v480-480Z"/></svg>
+                        </button>
+                      </td> */}
+                      <td className='px-6 py-4 text-center flex flex-row items-center justify-center gap-2'>
+                        <button
+                          type='button'
+                          onClick={() => openEditModal(student)}
+                          className='bg-blue-300 p-0.5 rounded-sm cursor-pointer'
+                        >
+                          <svg xmlns='http://www.w3.org/2000/svg' height='20px' viewBox='0 -960 960 960' width='20px' fill='#2854C5'>
+                            <path d='M216-216h51l375-375-51-51-375 375v51Zm-72 72v-153l498-498q11-11 23.84-16 12.83-5 27-5 14.16 0 27.16 5t24 16l51 51q11 11 16 24t5 26.54q0 14.45-5.02 27.54T795-642L297-144H144Zm600-549-51-51 51 51Zm-127.95 76.95L591-642l51 51-25.95-25.05Z' />
+                          </svg>
+                        </button>
+
+                        <button
+                          type='button'
+                          onClick={() => openDeleteModal(student)}
+                          className='bg-red-300 p-0.5 rounded-sm cursor-pointer'
+                        >
+                          <svg xmlns='http://www.w3.org/2000/svg' height='20px' viewBox='0 -960 960 960' width='20px' fill='#8C1A10'>
+                            <path d='M312-144q-29.7 0-50.85-21.15Q240-186.3 240-216v-480h-48v-72h192v-48h192v48h192v72h-48v479.57Q720-186 698.85-165T648-144H312Zm336-552H312v480h336v-480ZM384-288h72v-336h-72v336Zm120 0h72v-336h-72v336ZM312-696v480-480Z' />
+                          </svg>
                         </button>
                       </td>
                     </tr>
@@ -244,11 +393,10 @@ export default function Students() {
                     <button
                       key={page}
                       onClick={() => fetchStudents(page)}
-                      className={`w-10 h-10 text-sm font-medium rounded-lg transition-all ${
-                        pagination.page === page
+                      className={`w-10 h-10 text-sm font-medium rounded-lg transition-all ${pagination.page === page
                           ? 'bg-indigo-500 text-white'
                           : 'text-gray-700 border border-gray-200 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       {page}
                     </button>
@@ -266,6 +414,149 @@ export default function Students() {
           </>
         )}
       </div>
+      <Modal
+        isOpen={isEditOpen}
+        onClose={() => {
+          if (isSaving) return
+          setIsEditOpen(false)
+          setSelectedStudent(null)
+        }}
+        title='Edit Student'
+        size='lg'
+        footer={
+          <div className='flex items-center justify-end gap-2'>
+            <button
+              type='button'
+              onClick={() => {
+                if (isSaving) return
+                setIsEditOpen(false)
+                setSelectedStudent(null)
+              }}
+              className='rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50'
+            >
+              Cancel
+            </button>
+            <button
+              type='button'
+              onClick={handleEditStudent}
+              disabled={isSaving}
+              className='rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60'
+            >
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        }
+      >
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>Student Number</label>
+            <input
+              type='text'
+              value={editForm.studentNumber}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, studentNumber: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            />
+          </div>
+
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>Email</label>
+            <input
+              type='email'
+              value={editForm.email}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, email: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            />
+          </div>
+
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>First Name</label>
+            <input
+              type='text'
+              value={editForm.firstName}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, firstName: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            />
+          </div>
+
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>Last Name</label>
+            <input
+              type='text'
+              value={editForm.lastName}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, lastName: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            />
+          </div>
+
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>Birth Date</label>
+            <input
+              type='date'
+              value={editForm.birthDate}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, birthDate: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            />
+          </div>
+
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>Course</label>
+            <select
+              value={editForm.courseId}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, courseId: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            >
+              <option value=''>Select course</option>
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.code} - {course.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isDeleteOpen}
+        onClose={() => {
+          if (isDeleting) return
+          setIsDeleteOpen(false)
+          setSelectedStudent(null)
+        }}
+        title='Delete Student'
+        size='sm'
+        footer={
+          <div className='flex items-center justify-end gap-2'>
+            <button
+              type='button'
+              onClick={() => {
+                if (isDeleting) return
+                setIsDeleteOpen(false)
+                setSelectedStudent(null)
+              }}
+              className='rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50'
+            >
+              Cancel
+            </button>
+            <button
+              type='button'
+              onClick={handleDeleteStudent}
+              disabled={isDeleting}
+              className='rounded-lg bg-rose-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60'
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
+        }
+      >
+        <p className='text-sm text-slate-600'>
+          Are you sure you want to delete{' '}
+          <span className='font-semibold text-slate-800'>
+            {selectedStudent ? `${selectedStudent.firstName} ${selectedStudent.lastName}` : 'this student'}
+          </span>
+          ? This action cannot be undone.
+        </p>
+      </Modal>
     </section>
   )
 }
