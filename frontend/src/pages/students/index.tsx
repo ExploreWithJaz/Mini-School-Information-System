@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { apiCall, API_URL } from '@/lib/api'
+import { apiCall } from '@/lib/api'
 import { useRouter } from 'next/navigation'
 
 interface Student {
@@ -9,20 +9,22 @@ interface Student {
   firstName: string
   lastName: string
   email: string
-  birthDate: Date
+  birthDate: string
   courseId: string
-  createdAt: Date
-  updatedAt: Date
+  createdAt: string
+  updatedAt: string
 }
 
-interface PaginationResponse {
-  data: Student[]
-  pagination: {
-    page: number
-    limit: number
-    total: number
-    totalPages: number
-  }
+interface StudentApi {
+  id: string
+  student_number: string
+  first_name: string
+  last_name: string
+  email: string
+  birth_date: string
+  course_id: string
+  created_at: string
+  updated_at: string
 }
 
 export default function Students() {
@@ -50,7 +52,20 @@ export default function Students() {
       if (courseId) params.append('courseId', courseId)
 
       const response = await apiCall(`/students?${params.toString()}`)
-      setStudents(response.data)
+
+      const mappedStudents: Student[] = (response.data as StudentApi[]).map((s) => ({
+        id: s.id,
+        studentNumber: s.student_number,
+        firstName: s.first_name,
+        lastName: s.last_name,
+        email: s.email,
+        birthDate: s.birth_date,
+        courseId: s.course_id,
+        createdAt: s.created_at,
+        updatedAt: s.updated_at
+      }))
+
+      setStudents(mappedStudents)
       setPagination(response.pagination)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch students')
@@ -86,23 +101,24 @@ export default function Students() {
     }
   }
 
-  const formatDate = (date: string | Date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
+  const formatDate = (date: string) => {
+    const parsed = new Date(date)
+    return Number.isNaN(parsed.getTime())
+      ? 'N/A'
+      : parsed.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        })
   }
 
   return (
     <section className='bg-[#f5f6fb] min-h-screen p-5'>
-      {/* Header */}
       <div className='mb-6'>
         <h1 className='text-3xl font-bold text-gray-900 mb-2'>Student Management</h1>
         <p className='text-gray-500'>View and manage all students in the system</p>
       </div>
 
-      {/* Search and Filter */}
       <div className='bg-white p-5 rounded-xl border border-gray-100 mb-5 flex flex-col sm:flex-row gap-4'>
         <div className='flex-1'>
           <label className='block text-sm font-medium text-gray-700 mb-2'>Search Students</label>
@@ -129,7 +145,6 @@ export default function Students() {
         </div>
       </div>
 
-      {/* Table */}
       <div className='bg-white rounded-xl border border-gray-100 overflow-hidden'>
         {loading ? (
           <div className='flex items-center justify-center p-10'>
@@ -198,7 +213,6 @@ export default function Students() {
               </table>
             </div>
 
-            {/* Pagination */}
             <div className='flex items-center justify-between px-6 py-4 bg-gray-50 border-t border-gray-100'>
               <p className='text-sm text-gray-600'>
                 Showing <span className='font-medium'>{(pagination.page - 1) * pagination.limit + 1}</span> to{' '}
