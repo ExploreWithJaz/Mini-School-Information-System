@@ -54,7 +54,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         const data = await response.json()
-        setUser(data.user)
+        // Normalize role to capitalized format
+        const normalizedUser = {
+          ...data.user,
+          role: data.user.role.charAt(0).toUpperCase() + data.user.role.slice(1)
+        }
+        setUser(normalizedUser)
         setupInactivityTimer()
       } else {
         // Token is invalid, clear it and redirect to login
@@ -139,8 +144,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json()
       const newToken = data.token
 
+      // Normalize role to capitalized format
+      const normalizedUser = {
+        ...data.user,
+        role: data.user.role.charAt(0).toUpperCase() + data.user.role.slice(1)
+      }
+
       setToken(newToken)
-      setUser(data.user)
+      setUser(normalizedUser)  // ✅ Now normalized
       localStorage.setItem('authToken', newToken)
       setupInactivityTimer()
     } catch (error) {
