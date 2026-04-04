@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
 import { apiCall } from '@/lib/api'
+import Modal from '@/components/modal'
 
 type CourseApi = {
   id: string
@@ -25,6 +26,11 @@ export default function Courses() {
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [editForm, setEditForm] = useState({ code: '', name: '', description: '' })
+  const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -75,15 +81,21 @@ export default function Courses() {
     return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
   }
 
-  const handleDeleteCourse = async (courseId: string) => {
-    const confirmed = window.confirm('Delete this course? This action cannot be undone.')
-    if (!confirmed) return
+  const openDeleteModal = (course: Course) => {
+    setSelectedCourse(course)
+    setIsDeleteOpen(true)
+  }
+
+  const handleDeleteCourse = async () => {
+    if (!selectedCourse) return
 
     try {
-      setDeletingId(courseId)
+      setDeletingId(selectedCourse.id)
       setError(null)
-      await apiCall(`/courses/${courseId}`, { method: 'DELETE' })
-      setCourses((prev) => prev.filter((course) => course.id !== courseId))
+      await apiCall(`/courses/${selectedCourse.id}`, { method: 'DELETE' })
+      setCourses((prev) => prev.filter((course) => course.id !== selectedCourse.id))
+      setIsDeleteOpen(false)
+      setSelectedCourse(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete course')
     } finally {
@@ -91,30 +103,43 @@ export default function Courses() {
     }
   }
 
-  const handleEditCourse = async (course: Course) => {
-    const nextCode = window.prompt('Course code', course.code)
-    if (nextCode === null) return
+  const openEditModal = (course: Course) => {
+    setSelectedCourse(course)
+    setEditForm({
+      code: course.code,
+      name: course.name,
+      description: course.description
+    })
+    setIsEditOpen(true)
+  }
 
-    const nextName = window.prompt('Course name', course.name)
-    if (nextName === null) return
+  const handleEditCourse = async () => {
+    if (!selectedCourse) return
 
-    const nextDescription = window.prompt('Course description', course.description)
-    if (nextDescription === null) return
+    const code = editForm.code.trim()
+    const name = editForm.name.trim()
+    const description = editForm.description.trim()
+
+    if (!code || !name) {
+      setError('Course code and name are required')
+      return
+    }
 
     try {
+      setIsSaving(true)
       setError(null)
-      const updated = (await apiCall(`/courses/${course.id}`, {
+      const updated = (await apiCall(`/courses/${selectedCourse.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          code: nextCode.trim(),
-          name: nextName.trim(),
-          description: nextDescription.trim()
+          code,
+          name,
+          description
         })
       })) as CourseApi
 
       setCourses((prev) =>
         prev.map((item) =>
-          item.id === course.id
+          item.id === selectedCourse.id
             ? {
                 id: updated.id,
                 code: updated.code,
@@ -126,8 +151,13 @@ export default function Courses() {
             : item
         )
       )
+
+      setIsEditOpen(false)
+      setSelectedCourse(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update course')
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -199,14 +229,14 @@ export default function Courses() {
                   <div className='mt-4 flex items-center justify-end gap-2'>
                     <button
                       type='button'
-                      onClick={() => handleEditCourse(course)}
+                      onClick={() => openEditModal(course)}
                       className='rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50'
                     >
                       Edit
                     </button>
                     <button
                       type='button'
-                      onClick={() => handleDeleteCourse(course.id)}
+                      onClick={() => openDeleteModal(course)}
                       disabled={deletingId === course.id}
                       className='rounded-lg bg-rose-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60'
                     >
@@ -219,6 +249,112 @@ export default function Courses() {
           )}
         </section>
       </div>
+
+      <Modal
+        isOpen={isEditOpen}
+        onClose={() => {
+          if (isSaving) return
+          setIsEditOpen(false)
+          setSelectedCourse(null)
+        }}
+        title='Edit Course'
+        size='md'
+        footer={
+          <div className='flex items-center justify-end gap-2'>
+            <button
+              type='button'
+              onClick={() => {
+                if (isSaving) return
+                setIsEditOpen(false)
+                setSelectedCourse(null)
+              }}
+              className='rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50'
+            >
+              Cancel
+            </button>
+            <button
+              type='button'
+              onClick={handleEditCourse}
+              disabled={isSaving}
+              className='rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60'
+            >
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        }
+      >
+        <div className='space-y-4'>
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>Course Code</label>
+            <input
+              type='text'
+              value={editForm.code}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, code: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            />
+          </div>
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>Course Name</label>
+            <input
+              type='text'
+              value={editForm.name}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            />
+          </div>
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>Description</label>
+            <textarea
+              rows={4}
+              value={editForm.description}
+              onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            />
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isDeleteOpen}
+        onClose={() => {
+          if (deletingId) return
+          setIsDeleteOpen(false)
+          setSelectedCourse(null)
+        }}
+        title='Delete Course'
+        size='sm'
+        footer={
+          <div className='flex items-center justify-end gap-2'>
+            <button
+              type='button'
+              onClick={() => {
+                if (deletingId) return
+                setIsDeleteOpen(false)
+                setSelectedCourse(null)
+              }}
+              className='rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50'
+            >
+              Cancel
+            </button>
+            <button
+              type='button'
+              onClick={handleDeleteCourse}
+              disabled={Boolean(deletingId)}
+              className='rounded-lg bg-rose-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60'
+            >
+              {deletingId ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
+        }
+      >
+        <p className='text-sm text-slate-600'>
+          Are you sure you want to delete{' '}
+          <span className='font-semibold text-slate-800'>
+            {selectedCourse ? `${selectedCourse.code} - ${selectedCourse.name}` : 'this course'}
+          </span>
+          ? This action cannot be undone.
+        </p>
+      </Modal>
     </main>
   )
 }
