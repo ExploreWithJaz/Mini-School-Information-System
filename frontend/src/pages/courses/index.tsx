@@ -27,9 +27,12 @@ export default function Courses() {
   const [loading, setLoading] = useState(true)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
+  const [isAddOpen, setIsAddOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [addForm, setAddForm] = useState({ code: '', name: '', description: '' })
   const [editForm, setEditForm] = useState({ code: '', name: '', description: '' })
+  const [isAdding, setIsAdding] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -79,6 +82,47 @@ export default function Courses() {
     const d = new Date(value)
     if (Number.isNaN(d.getTime())) return 'N/A'
     return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+  }
+
+  const openAddModal = () => {
+    setAddForm({ code: '', name: '', description: '' })
+    setIsAddOpen(true)
+  }
+
+  const handleAddCourse = async () => {
+    const code = addForm.code.trim()
+    const name = addForm.name.trim()
+    const description = addForm.description.trim()
+
+    if (!code || !name) {
+      setError('Course code and name are required')
+      return
+    }
+
+    try {
+      setIsAdding(true)
+      setError(null)
+      const created = (await apiCall('/courses', {
+        method: 'POST',
+        body: JSON.stringify({ code, name, description })
+      })) as CourseApi
+
+      const createdCourse: Course = {
+        id: created.id,
+        code: created.code,
+        name: created.name,
+        description: created.description ?? 'No description provided',
+        createdAt: created.created_at,
+        updatedAt: created.updated_at
+      }
+
+      setCourses((prev) => [createdCourse, ...prev])
+      setIsAddOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add course')
+    } finally {
+      setIsAdding(false)
+    }
   }
 
   const openDeleteModal = (course: Course) => {
@@ -171,6 +215,13 @@ export default function Courses() {
               Browse and manage available programs in the database.
             </p>
           </div>
+          <button
+            type='button'
+            onClick={openAddModal}
+            className='inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800'
+          >
+            + Add Course
+          </button>
         </header>
 
         <section className='rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 md:p-6'>
@@ -249,6 +300,68 @@ export default function Courses() {
           )}
         </section>
       </div>
+
+      <Modal
+        isOpen={isAddOpen}
+        onClose={() => {
+          if (isAdding) return
+          setIsAddOpen(false)
+        }}
+        title='Add Course'
+        size='md'
+        footer={
+          <div className='flex items-center justify-end gap-2'>
+            <button
+              type='button'
+              onClick={() => {
+                if (isAdding) return
+                setIsAddOpen(false)
+              }}
+              className='rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50'
+            >
+              Cancel
+            </button>
+            <button
+              type='button'
+              onClick={handleAddCourse}
+              disabled={isAdding}
+              className='rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60'
+            >
+              {isAdding ? 'Adding...' : 'Add Course'}
+            </button>
+          </div>
+        }
+      >
+        <div className='space-y-4'>
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>Course Code</label>
+            <input
+              type='text'
+              value={addForm.code}
+              onChange={(e) => setAddForm((prev) => ({ ...prev, code: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            />
+          </div>
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>Course Name</label>
+            <input
+              type='text'
+              value={addForm.name}
+              onChange={(e) => setAddForm((prev) => ({ ...prev, name: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            />
+          </div>
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>Description</label>
+            <textarea
+              rows={4}
+              value={addForm.description}
+              onChange={(e) => setAddForm((prev) => ({ ...prev, description: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            />
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={isEditOpen}
