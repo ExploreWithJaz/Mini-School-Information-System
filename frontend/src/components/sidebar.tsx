@@ -1,4 +1,6 @@
 'use client'
+import { useAuth } from '@/context/authContext'
+import { useRouter } from 'next/navigation'
 import { useState } from "react"
 
 const NAV_ITEMS = [
@@ -10,6 +12,14 @@ const NAV_ITEMS = [
 ]
 
 const Sidebar = ({ activePage, setActivePage }: { activePage: string; setActivePage: (page: string) => void }) => {
+  const { user, logout } = useAuth()
+  const router = useRouter()
+
+  const handleLogout = () => {
+    logout()
+    router.push('/login')
+  }
+
   return (
     <aside className="sticky top-0 h-screen shrink-0 flex flex-col gap-8 bg-white border-r border-gray-100 p-5 w-56">
       {/* Logo */}
@@ -77,17 +87,20 @@ const Sidebar = ({ activePage, setActivePage }: { activePage: string; setActiveP
       <div className="mt-auto">
         <div className="flex items-center gap-2.5 bg-gray-50 rounded-xl p-2.5">
           <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-            N
+            {user?.email?.[0]?.toUpperCase() || 'U'}
           </div>
           <div>
-            <p className="text-xs font-medium text-gray-800">Jazper Garcia</p>
-            <p className="text-[11px] text-gray-400">Student</p>
+            <p className="text-xs font-medium text-gray-800">{user?.email || 'User'}</p>
+            <p className="text-[11px] text-gray-400">{user?.role || 'Student'}</p>
           </div>
         </div>
-        <div className="bg-red-100 p-2 rounded-lg flex items-center gap-2.5 mt-1 cursor-pointer hover:bg-red-200 transition-colors">
+        <button
+          onClick={handleLogout}
+          className="w-full bg-red-100 p-2 rounded-lg flex items-center gap-2.5 mt-1 cursor-pointer hover:bg-red-200 transition-colors"
+        >
           <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#EA3323"><path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z"/></svg>
           <p className="text-red-500 font-bold text-xs">Logout</p>
-        </div>
+        </button>
       </div>
     </aside>
   )
