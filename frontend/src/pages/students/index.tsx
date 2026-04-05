@@ -70,6 +70,11 @@ export default function Students() {
     birthDate: '',
     courseId: ''
   })
+  const [isImportOpen, setIsImportOpen] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [isImporting, setIsImporting] = useState(false)
+  const [importResults, setImportResults] = useState<any>(null)
+  const [showImportResults, setShowImportResults] = useState(false)
 
   const fetchStudents = async (page = 1) => {
     try {
@@ -238,6 +243,62 @@ export default function Students() {
     }
   }
 
+  const handleImportCSV = async () => {
+    if (!importFile) {
+      setError('Please select a file')
+      return
+    }
+
+    try {
+      setIsImporting(true)
+      setError(null)
+
+      const formData = new FormData()
+      formData.append('file', importFile)
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/students/import`, {
+        method: 'POST',
+        body: formData
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.message || 'Import failed')
+        return
+      }
+
+      setImportResults(data.results)
+      setShowImportResults(true)
+      setImportFile(null)
+      setIsImportOpen(false)
+
+      // Refresh student list
+      setTimeout(() => {
+        fetchStudents(1)
+      }, 500)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Import failed')
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  const downloadSampleCSV = () => {
+    const sample = `student_number,first_name,last_name,email,birth_date,course_id
+STU001,John,Doe,john.doe@example.com,2000-01-15,COURSE_ID_HERE
+STU002,Jane,Smith,jane.smith@example.com,2000-02-20,COURSE_ID_HERE
+STU003,Bob,Johnson,bob.johnson@example.com,2000-03-10,COURSE_ID_HERE`
+
+    const element = document.createElement('a')
+    element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(sample))
+    element.setAttribute('download', 'sample_students.csv')
+    element.style.display = 'none'
+    document.body.appendChild(element)
+    element.click()
+    document.body.removeChild(element)
+  }
+
   return (
     <section className='bg-[#f5f6fb] min-h-screen p-5'>
       <div className='mb-6'>
@@ -272,14 +333,23 @@ export default function Students() {
           </select>
         </div>
         <div className='flex flex-col'>
-          <label className='block text-sm font-medium text-gray-700 mb-2'>Filter by Course</label>
-          <button
-            type='button'
-            onClick={() => router.push('/students/add')}
-            className='px-4 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer'
-          >
-            Add Student
-          </button>
+          <label className='block text-sm font-medium text-gray-700 mb-2'>Actions</label>
+          <div className='flex gap-2'>
+            <button
+              type='button'
+              onClick={() => setIsImportOpen(true)}
+              className='px-4 py-2.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors cursor-pointer'
+            >
+              Import CSV
+            </button>
+            <button
+              type='button'
+              onClick={() => router.push('/students/add')}
+              className='px-4 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer'
+            >
+              Add Student
+            </button>
+          </div>
         </div>
       </div>
 
@@ -337,14 +407,6 @@ export default function Students() {
                           Active
                         </span>
                       </td>
-                      {/* <td className='px-6 py-4 text-center flex flex-row items-center justify-center gap-2'>
-                        <button className='bg-blue-300 p-0.5 rounded-sm cursor-pointer'>
-                          <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#2854C5"><path d="M216-216h51l375-375-51-51-375 375v51Zm-72 72v-153l498-498q11-11 23.84-16 12.83-5 27-5 14.16 0 27.16 5t24 16l51 51q11 11 16 24t5 26.54q0 14.45-5.02 27.54T795-642L297-144H144Zm600-549-51-51 51 51Zm-127.95 76.95L591-642l51 51-25.95-25.05Z"/></svg>
-                        </button>
-                        <button className='bg-red-300 p-0.5 rounded-sm cursor-pointer'>
-                          <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 -960 960 960" width="20px" fill="#8C1A10"><path d="M312-144q-29.7 0-50.85-21.15Q240-186.3 240-216v-480h-48v-72h192v-48h192v48h192v72h-48v479.57Q720-186 698.85-165T648-144H312Zm336-552H312v480h336v-480ZM384-288h72v-336h-72v336Zm120 0h72v-336h-72v336ZM312-696v480-480Z"/></svg>
-                        </button>
-                      </td> */}
                       <td className='px-6 py-4 text-center flex flex-row items-center justify-center gap-2'>
                         <button
                           type='button'
@@ -352,8 +414,7 @@ export default function Students() {
                           className='bg-blue-300 p-0.5 rounded-sm cursor-pointer'
                         >
                           <svg xmlns='http://www.w3.org/2000/svg' height='20px' viewBox='0 -960 960 960' width='20px' fill='#2854C5'>
-                            <path d='M216-216h51l375-375-51-51-375 375v51Zm-72 72v-153l498-498q11-11 23.84-16 12.83-5 27-5 14.16 0 27.16 5t24 16l51 51q11 11 16 24t5 26.54q0 14.45-5.02 27.54T795-642L297-144H144Zm600-549-51-51 51 51Zm-127.95 76.95L591-642l51 51-25.95-25.05Z' />
-                          </svg>
+                            <path d='M216-216h51l375-375-51-51-375 375v51Zm-72 72v-153l498-498q11-11 23.84-16 12.83-5 27-5 14.16 0 27.16 5t24 16l51 51q11 11 16 24t5 26.54q0 14.45-5.02 27.54T795-642L297-144H144Zm600-549-51-51 51 51Zm-127.95 76.95L591-642l51 51-25.95-25.05Z'/></svg>
                         </button>
 
                         <button
@@ -556,6 +617,120 @@ export default function Students() {
           </span>
           ? This action cannot be undone.
         </p>
+      </Modal>
+      <Modal
+        isOpen={isImportOpen}
+        onClose={() => {
+          if (isImporting) return
+          setIsImportOpen(false)
+          setImportFile(null)
+        }}
+        title='Import Students from CSV'
+        size='lg'
+        footer={
+          <div className='flex items-center justify-end gap-2'>
+            <button
+              type='button'
+              onClick={() => {
+                if (isImporting) return
+                setIsImportOpen(false)
+                setImportFile(null)
+              }}
+              className='rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50'
+            >
+              Cancel
+            </button>
+            <button
+              type='button'
+              onClick={handleImportCSV}
+              disabled={isImporting || !importFile}
+              className='rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60'
+            >
+              {isImporting ? 'Importing...' : 'Import'}
+            </button>
+          </div>
+        }
+      >
+        <div className='space-y-4'>
+          <div>
+            <h3 className='font-medium text-slate-900 mb-2'>CSV Format</h3>
+            <p className='text-sm text-slate-600 mb-3'>Required columns:</p>
+            <div className='bg-slate-50 p-3 rounded-lg text-xs font-mono text-slate-700 mb-4'>
+              student_number, first_name, last_name, email, birth_date, course_id
+            </div>
+            <p className='text-xs text-slate-500 mb-3'>Date format: YYYY-MM-DD (e.g., 2000-01-15)</p>
+            <button
+              type='button'
+              onClick={downloadSampleCSV}
+              className='text-sm text-indigo-600 hover:text-indigo-700 font-medium'
+            >
+              ↓ Download Sample CSV
+            </button>
+          </div>
+
+          <div>
+            <label className='block text-sm font-medium text-slate-700 mb-2'>Select File</label>
+            <input
+              type='file'
+              accept='.csv'
+              onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+              className='w-full px-3 py-2 border border-slate-200 rounded-lg text-sm'
+            />
+            {importFile && (
+              <p className='text-xs text-slate-600 mt-2'>Selected: {importFile.name}</p>
+            )}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Import Results Modal */}
+      <Modal
+        isOpen={showImportResults}
+        onClose={() => setShowImportResults(false)}
+        title='Import Results'
+        size='lg'
+        footer={
+          <div className='flex items-center justify-end gap-2'>
+            <button
+              type='button'
+              onClick={() => setShowImportResults(false)}
+              className='rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50'
+            >
+              Close
+            </button>
+          </div>
+        }
+      >
+        {importResults && (
+          <div className='space-y-4'>
+            <div className='grid grid-cols-2 gap-4'>
+              <div className='bg-green-50 p-4 rounded-lg'>
+                <p className='text-sm text-green-700 font-medium'>Success</p>
+                <p className='text-2xl font-bold text-green-600'>{importResults.success}</p>
+              </div>
+              <div className='bg-red-50 p-4 rounded-lg'>
+                <p className='text-sm text-red-700 font-medium'>Failed</p>
+                <p className='text-2xl font-bold text-red-600'>{importResults.failed}</p>
+              </div>
+            </div>
+
+            {importResults.errors.length > 0 && (
+              <div>
+                <h3 className='font-medium text-slate-900 mb-2'>Errors</h3>
+                <div className='space-y-2 max-h-64 overflow-y-auto'>
+                  {importResults.errors.map((error: any, idx: number) => (
+                    <div key={idx} className='bg-red-50 p-3 rounded text-sm text-red-700'>
+                      <p className='font-medium'>
+                        {error.studentNumber ? `${error.studentNumber} - ` : `Row ${error.row}: `}
+                        {error.message}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </section>
   )

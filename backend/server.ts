@@ -18,9 +18,10 @@ const app = fastify({ logger: true });
 app.register(cors, {
   origin: true, // Allow all origins (use specific URL in production)
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 });
 app.register(cookie);
+
+app.register(require('@fastify/multipart'))
 
 app.register(studentRoutes);
 app.register(courseRoutes);
