@@ -133,11 +133,37 @@ export default function Enrollment() {
         const coursesList = Array.isArray(coursesRes) ? coursesRes : coursesRes.data || []
         setAllCourses(coursesList)
 
-        // If admin, fetch all students
+        // If admin, fetch all students from all pages
         if (isAdmin) {
-          const studentsRes = await apiCall('/students')
-          const studentsList = (Array.isArray(studentsRes) ? studentsRes : studentsRes.data || []).map(
-            (s: any) => ({
+          try {
+            // Fetch first page to get total pages
+            const firstPageRes = await apiCall('/students?page=1&limit=50')
+            const initialData = Array.isArray(firstPageRes) ? firstPageRes : firstPageRes.data || []
+            const pagination = firstPageRes.pagination
+            
+            let allStudentsData = initialData
+            
+            // If there are more pages, fetch them
+            if (pagination && pagination.totalPages > 1) {
+              const remainingPages = Array.from(
+                { length: pagination.totalPages - 1 },
+                (_, i) => i + 2
+              )
+              
+              const additionalPageResults = await Promise.all(
+                remainingPages.map((page) =>
+                  apiCall(`/students?page=${page}&limit=50`)
+                )
+              )
+              
+              // Combine all students from all pages
+              additionalPageResults.forEach((pageRes) => {
+                const pageData = Array.isArray(pageRes) ? pageRes : pageRes.data || []
+                allStudentsData = allStudentsData.concat(pageData)
+              })
+            }
+            
+            const studentsList = allStudentsData.map((s: any) => ({
               id: s.id,
               studentNumber: s.student_number || s.studentNumber,
               firstName: s.first_name || s.firstName,
@@ -145,9 +171,11 @@ export default function Enrollment() {
               email: s.email,
               birthDate: s.birth_date || s.birthDate,
               courseId: s.course_id || s.courseId
-            })
-          )
-          setAllStudents(studentsList)
+            }))
+            setAllStudents(studentsList)
+          } catch (err) {
+            console.error('Error fetching students:', err)
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data')

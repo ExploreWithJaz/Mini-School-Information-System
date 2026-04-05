@@ -55,11 +55,45 @@ export default function Reservations() {
       setError(null)
 
       const reservationsResponse = await apiCall('/subject-reservations')
-      const studentsResponse = await apiCall('/students')
+      
+      // Fetch all students from all pages
+      const firstPageRes = await apiCall('/students?page=1&limit=100')
+      let allStudentsData = Array.isArray(firstPageRes) ? firstPageRes : firstPageRes.data || []
+      const pagination = firstPageRes.pagination
+      
+      // If there are more pages, fetch them
+      if (pagination && pagination.totalPages > 1) {
+        const remainingPages = Array.from(
+          { length: pagination.totalPages - 1 },
+          (_, i) => i + 2
+        )
+        
+        const additionalPageResults = await Promise.all(
+          remainingPages.map((page) =>
+            apiCall(`/students?page=${page}&limit=100`)
+          )
+        )
+        
+        // Combine all students from all pages
+        additionalPageResults.forEach((pageRes) => {
+          const pageData = Array.isArray(pageRes) ? pageRes : pageRes.data || []
+          allStudentsData = allStudentsData.concat(pageData)
+        })
+      }
+
       const subjectsResponse = await apiCall('/subjects')
       const prerequisitesResponse = await apiCall('/subject-prerequisites')
 
-      const students = studentsResponse.data || studentsResponse
+      // Normalize students data (convert snake_case to camelCase)
+      const students = allStudentsData.map((s: any) => ({
+        id: s.id,
+        studentNumber: s.student_number || s.studentNumber,
+        firstName: s.first_name || s.firstName,
+        lastName: s.last_name || s.lastName,
+        email: s.email,
+        courseId: s.course_id || s.courseId
+      }))
+
       const subjects = subjectsResponse.data || subjectsResponse
       const prerequisites = prerequisitesResponse || []
 
