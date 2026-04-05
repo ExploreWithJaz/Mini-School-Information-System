@@ -45,6 +45,8 @@ function Page() {
           return <Subjects />
         case 'Reservations':
           return <Reservations />
+        case 'Enrollment':
+          return <Enrollment />
         case 'Dashboard':
         default:
           return <AdminDashboard />

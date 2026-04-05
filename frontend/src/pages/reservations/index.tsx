@@ -101,12 +101,12 @@ export default function Reservations() {
     const matchesStatus = statusFilter === 'all' || res.status === statusFilter
     const searchLower = search.toLowerCase()
     const matchesSearch =
-      res.student?.firstName.toLowerCase().includes(searchLower) ||
-      res.student?.lastName.toLowerCase().includes(searchLower) ||
-      res.student?.studentNumber.toLowerCase().includes(searchLower) ||
-      res.student?.email.toLowerCase().includes(searchLower) ||
-      res.subject?.code.toLowerCase().includes(searchLower) ||
-      res.subject?.title.toLowerCase().includes(searchLower)
+      (res.student?.firstName || '').toLowerCase().includes(searchLower) ||
+      (res.student?.lastName || '').toLowerCase().includes(searchLower) ||
+      (res.student?.studentNumber || '').toLowerCase().includes(searchLower) ||
+      (res.student?.email || '').toLowerCase().includes(searchLower) ||
+      (res.subject?.code || '').toLowerCase().includes(searchLower) ||
+      (res.subject?.title || '').toLowerCase().includes(searchLower)
 
     return matchesStatus && matchesSearch
   })
