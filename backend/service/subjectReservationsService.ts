@@ -51,15 +51,15 @@ export async function createReservation(data: InputSubjectReservations): Promise
     
     // Check if student has grades for ALL prerequisites
     const studentGradesQuery = `
-      SELECT COUNT(DISTINCT subject_id) as satisfied_count
-      FROM grades
-      WHERE student_id = $1 AND subject_id = ANY($2::text[])
+      SELECT subject_id FROM grades
+      WHERE student_id = $1 AND subject_id = ANY($2::uuid[])
     `;
     const gradesResult = await pool.query(studentGradesQuery, [data.studentID, prerequisiteIds]);
     
-    const satisfiedCount = gradesResult.rows[0].satisfied_count;
+    const completedPrerequisites = new Set(gradesResult.rows.map(row => row.subject_id));
+    const allPrerequisitesMet = prerequisiteIds.every(id => completedPrerequisites.has(id));
     
-    if (satisfiedCount < prerequisiteIds.length) {
+    if (!allPrerequisitesMet) {
       throw new Error('Student has not satisfied all prerequisite requirements');
     }
   }
