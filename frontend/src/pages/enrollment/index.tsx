@@ -68,6 +68,7 @@ export default function Enrollment() {
   const [allCourses, setAllCourses] = useState<Course[]>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string>('')
   const [searchStudent, setSearchStudent] = useState('')
+  const [selectedCourse, setSelectedCourse] = useState<string>('')
   const [currentPage, setCurrentPage] = useState(1)
   const studentsPerPage = 10
 
@@ -386,14 +387,16 @@ export default function Enrollment() {
 
   // Pagination logic
   const filteredStudents =
-    !isAdmin || searchStudent.length === 0
+    !isAdmin || (searchStudent.length === 0 && selectedCourse === '')
       ? allStudents
       : allStudents.filter(
           (s) =>
-            s.studentNumber.toLowerCase().includes(searchStudent.toLowerCase()) ||
-            s.firstName.toLowerCase().includes(searchStudent.toLowerCase()) ||
-            s.lastName.toLowerCase().includes(searchStudent.toLowerCase()) ||
-            s.email.toLowerCase().includes(searchStudent.toLowerCase())
+            (selectedCourse === '' || s.courseId === selectedCourse) &&
+            (searchStudent === '' ||
+              s.studentNumber.toLowerCase().includes(searchStudent.toLowerCase()) ||
+              s.firstName.toLowerCase().includes(searchStudent.toLowerCase()) ||
+              s.lastName.toLowerCase().includes(searchStudent.toLowerCase()) ||
+              s.email.toLowerCase().includes(searchStudent.toLowerCase()))
         )
 
   // Sort students in ascending order by student number
@@ -430,14 +433,31 @@ export default function Enrollment() {
       {isAdmin && (
         <div className='bg-white rounded-xl border border-gray-100 overflow-hidden mb-6'>
           <div className='p-5 border-b border-gray-100'>
-            <label className='block text-sm font-medium text-gray-700 mb-3'>Search Students</label>
-            <input
-              type='text'
-              placeholder='Search by student number, name, or email...'
-              value={searchStudent}
-              onChange={(e) => setSearchStudent(e.target.value)}
-              className='w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent'
-            />
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-3'>Search Students</label>
+                <input
+                  type='text'
+                  placeholder='Search by student number, name, or email...'
+                  value={searchStudent}
+                  onChange={(e) => setSearchStudent(e.target.value)}
+                  className='w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent'
+                />
+              </div>
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-3'>Filter by Course</label>
+                <select
+                  value={selectedCourse}
+                  onChange={(e) => setSelectedCourse(e.target.value)}
+                  className='w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent'
+                >
+                  <option value=''>All Courses</option>
+                  {allCourses.map(course => (
+                    <option key={course.id} value={course.id}>{course.code} - {course.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
           {loading && !allStudents.length ? (

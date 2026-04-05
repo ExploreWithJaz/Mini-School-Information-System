@@ -120,6 +120,10 @@ async function seed() {
       // BUS prerequisites
       { subjectID: subjects[8].id, prerequisiteSubjectID: subjects[7].id }, // BUS301 requires BUS201
       { subjectID: subjects[7].id, prerequisiteSubjectID: subjects[6].id }, // BUS201 requires BUS101
+
+      // ARTS prerequisites
+      { subjectID: subjects[11].id, prerequisiteSubjectID: subjects[9].id }, // ARTS201 requires ARTS101
+      { subjectID: subjects[12].id, prerequisiteSubjectID: subjects[9].id }, // ARTS202 requires ARTS101
       
       // General education prerequisite (CHI2 requires CHI1)
       { subjectID: genEdByCode['CHI2'][0].id, prerequisiteSubjectID: genEdByCode['CHI1'][0].id }
@@ -172,7 +176,7 @@ async function seed() {
     let gradeCount = 0;
     for (const student of students) {
       // Get subjects for this student's course
-      const courseSubjects = subjects.filter(s => s.courseID === student.courseId);
+      const courseSubjects = subjects.filter(s => s.courseID === student.courseId && s.code.includes('101'));
       
       // Create grades for each subject
       for (const subject of courseSubjects) {
