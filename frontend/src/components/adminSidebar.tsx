@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { label: 'Students', section: 'main' },
   { label: 'Courses', section: 'main' },
   { label: 'Subjects', section: 'main' },
+  {label: 'Reservations', section: 'main' },
   { label: 'Users', section: 'management' },
   { label: 'Reports', section: 'management' },
   { label: 'Settings', section: 'management' }
