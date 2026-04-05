@@ -179,7 +179,7 @@ export default function Subjects() {
         }
     }
 
-    const openEditModal = (subject: Subject) => {
+    const openEditModal = async (subject: Subject) => {
         setSelectedSubject(subject)
         setEditForm({
             code: subject.code,
@@ -187,7 +187,22 @@ export default function Subjects() {
             units: subject.units,
             courseID: subject.courseID
         })
+        setSelectedPrerequisiteId('')
+        setPrerequisiteError(null)
         setIsEditOpen(true)
+
+        try {
+            const response = await apiCall(`/subjects/${subject.id}/prerequisites`)
+            const mapped: Prerequisite[] = (response as PrerequisiteApi[]).map((p) => ({
+                id: p.id,
+                subjectID: p.subjectID ?? p.subject_id ?? '',
+                prerequisiteSubjectID: p.prerequisiteSubjectID ?? p.prerequisite_subject_id ?? '',
+                createdAt: p.createdAt ?? p.created_at ?? ''
+            }))
+            setPrerequisites(mapped)
+        } catch (err) {
+            setPrerequisiteError(err instanceof Error ? err.message : 'Failed to fetch prerequisites')
+        }
     }
 
     const handleEditSubject = async () => {
@@ -301,7 +316,7 @@ export default function Subjects() {
                 body: JSON.stringify({ prerequisiteSubjectID: selectedPrerequisiteId })
             })
 
-            // Refresh prerequisites
+            // Refresh prerequisites for the modal
             const response = await apiCall(`/subjects/${selectedSubject.id}/prerequisites`)
             const mapped: Prerequisite[] = (response as PrerequisiteApi[]).map((p) => ({
                 id: p.id,
@@ -311,6 +326,16 @@ export default function Subjects() {
             }))
             setPrerequisites(mapped)
             setSelectedPrerequisiteId('')
+            
+            // Refresh all prerequisites for the table display
+            const allPrereqsResponse = await apiCall('/subject-prerequisites')
+            const allPrereqsMapped: Prerequisite[] = (allPrereqsResponse as PrerequisiteApi[]).map((p) => ({
+                id: p.id,
+                subjectID: p.subjectID ?? p.subject_id ?? '',
+                prerequisiteSubjectID: p.prerequisiteSubjectID ?? p.prerequisite_subject_id ?? '',
+                createdAt: p.createdAt ?? p.created_at ?? ''
+            }))
+            setAllPrerequisites(allPrereqsMapped)
         } catch (err) {
             setPrerequisiteError(err instanceof Error ? err.message : 'Failed to add prerequisite')
         } finally {
@@ -331,6 +356,11 @@ export default function Subjects() {
             })
 
             setPrerequisites((prev) =>
+                prev.filter((p) => p.id !== prerequisiteId)
+            )
+            
+            // Also update allPrerequisites for the table display
+            setAllPrerequisites((prev) =>
                 prev.filter((p) => p.id !== prerequisiteId)
             )
         } catch (err) {
@@ -532,7 +562,7 @@ export default function Subjects() {
                                                         </div>
                                                     )}
                                                     {getPrerequisiteSubjects(subject.id).length === 0 && getDependentSubjects(subject.id).length === 0 && (
-                                                        <span className='text-xs text-slate-400'>No dependencies</span>
+                                                        <span className='text-xs text-slate-400'>No Prerequisite</span>
                                                     )}
                                                 </div>
                                             </td>
@@ -557,15 +587,7 @@ export default function Subjects() {
                                                     </svg>
                                                 </button>
 
-                                                <button
-                                                    type='button'
-                                                    onClick={() => openPrerequisiteModal(subject)}
-                                                    className='bg-green-300 p-0.5 rounded-sm cursor-pointer'
-                                                >
-                                                    <svg xmlns='http://www.w3.org/2000/svg' height='20px' viewBox='0 -960 960 960' width='20px' fill='#2D9C8F'>
-                                                        <path d='M216-216h51l375-375-51-51-375 375v51Zm-72 72v-153l498-498q11-11 23.84-16 12.83-5 27-5 14.16 0 27.16 5t24 16l51 51q11 11 16 24t5 26.54q0 14.45-5.02 27.54T795-642L297-144H144Zm600-549-51-51 51 51Zm-127.95 76.95L591-642l51 51-25.95-25.05Z' />
-                                                    </svg>
-                                                </button>
+
                                             </td>
                                         </tr>
                                     ))}
@@ -656,18 +678,18 @@ export default function Subjects() {
             <Modal
                 isOpen={isEditOpen}
                 onClose={() => {
-                    if (isSaving) return
+                    if (isSaving || isAddingPrerequisite) return
                     setIsEditOpen(false)
                     setSelectedSubject(null)
                 }}
                 title='Edit Subject'
-                size='md'
+                size='lg'
                 footer={
                     <div className='flex items-center justify-end gap-2'>
                         <button
                             type='button'
                             onClick={() => {
-                                if (isSaving) return
+                                if (isSaving || isAddingPrerequisite) return
                                 setIsEditOpen(false)
                                 setSelectedSubject(null)
                             }}
@@ -686,48 +708,118 @@ export default function Subjects() {
                     </div>
                 }
             >
-                <div className='space-y-4'>
+                <div className='space-y-6'>
                     <div>
-                        <label className='mb-1 block text-sm font-medium text-slate-700'>Course</label>
-                        <select
-                            value={editForm.courseID}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, courseID: e.target.value }))}
-                            className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
-                        >
-                            <option value=''>Select a course</option>
-                            {courses.map((course) => (
-                                <option key={course.id} value={course.id}>
-                                    {course.code} - {course.name}
-                                </option>
-                            ))}
-                        </select>
+                        <h3 className='mb-4 text-sm font-semibold text-slate-800'>Subject Details</h3>
+                        <div className='space-y-4'>
+                            <div>
+                                <label className='mb-1 block text-sm font-medium text-slate-700'>Course</label>
+                                <select
+                                    value={editForm.courseID}
+                                    onChange={(e) => setEditForm((prev) => ({ ...prev, courseID: e.target.value }))}
+                                    className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+                                >
+                                    <option value=''>Select a course</option>
+                                    {courses.map((course) => (
+                                        <option key={course.id} value={course.id}>
+                                            {course.code} - {course.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className='mb-1 block text-sm font-medium text-slate-700'>Subject Code</label>
+                                <input
+                                    type='text'
+                                    value={editForm.code}
+                                    onChange={(e) => setEditForm((prev) => ({ ...prev, code: e.target.value }))}
+                                    className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+                                />
+                            </div>
+                            <div>
+                                <label className='mb-1 block text-sm font-medium text-slate-700'>Subject Title</label>
+                                <input
+                                    type='text'
+                                    value={editForm.title}
+                                    onChange={(e) => setEditForm((prev) => ({ ...prev, title: e.target.value }))}
+                                    className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+                                />
+                            </div>
+                            <div>
+                                <label className='mb-1 block text-sm font-medium text-slate-700'>Units</label>
+                                <input
+                                    type='number'
+                                    value={editForm.units}
+                                    onChange={(e) => setEditForm((prev) => ({ ...prev, units: Number(e.target.value) }))}
+                                    className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+                                />
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label className='mb-1 block text-sm font-medium text-slate-700'>Subject Code</label>
-                        <input
-                            type='text'
-                            value={editForm.code}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, code: e.target.value }))}
-                            className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
-                        />
-                    </div>
-                    <div>
-                        <label className='mb-1 block text-sm font-medium text-slate-700'>Subject Title</label>
-                        <input
-                            type='text'
-                            value={editForm.title}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, title: e.target.value }))}
-                            className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
-                        />
-                    </div>
-                    <div>
-                        <label className='mb-1 block text-sm font-medium text-slate-700'>Units</label>
-                        <input
-                            type='number'
-                            value={editForm.units}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, units: Number(e.target.value) }))}
-                            className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
-                        />
+
+                    <div className='border-t border-slate-200 pt-6'>
+                        <h3 className='mb-4 text-sm font-semibold text-slate-800'>Prerequisites</h3>
+                        {prerequisiteError && (
+                            <div className='mb-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700'>
+                                {prerequisiteError}
+                            </div>
+                        )}
+                        <div className='space-y-4'>
+                            <div>
+                                <label className='mb-2 block text-sm font-medium text-slate-700'>Add Prerequisite</label>
+                                <div className='flex gap-2'>
+                                    <select
+                                        value={selectedPrerequisiteId}
+                                        onChange={(e) => setSelectedPrerequisiteId(e.target.value)}
+                                        className='flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+                                    >
+                                        <option value=''>Select a subject...</option>
+                                        {getAvailablePrerequisites().map((subject) => (
+                                            <option key={subject.id} value={subject.id}>
+                                                {subject.code} - {subject.title}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        type='button'
+                                        onClick={handleAddPrerequisite}
+                                        disabled={isAddingPrerequisite || !selectedPrerequisiteId}
+                                        className='rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60'
+                                    >
+                                        {isAddingPrerequisite ? 'Adding...' : 'Add'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 className='mb-2 text-sm font-semibold text-slate-800'>Current Prerequisites</h4>
+                                {prerequisites.length === 0 ? (
+                                    <p className='text-sm text-slate-500'>No prerequisites set yet.</p>
+                                ) : (
+                                    <div className='space-y-2'>
+                                        {prerequisites.map((prereq) => (
+                                            <div
+                                                key={prereq.id}
+                                                className='flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3'
+                                            >
+                                                <span className='text-sm text-slate-700'>
+                                                    {getSubjectLabel(prereq.prerequisiteSubjectID)}
+                                                </span>
+                                                <button
+                                                    type='button'
+                                                    onClick={() => handleDeletePrerequisite(prereq.id)}
+                                                    className='text-red-600 hover:text-red-800'
+                                                >
+                                                    <svg xmlns='http://www.w3.org/2000/svg' height='18px' viewBox='0 -960 960 960' width='18px' fill='currentColor'>
+                                                        <path d='m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z' />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </Modal>
@@ -773,92 +865,7 @@ export default function Subjects() {
                     ? This action cannot be undone.
                 </p>
             </Modal>
-            <Modal
-                isOpen={isPrerequisiteOpen}
-                onClose={() => {
-                    if (isAddingPrerequisite) return
-                    setIsPrerequisiteOpen(false)
-                    setSelectedSubject(null)
-                }}
-                title={`Manage Prerequisites: ${selectedSubject?.code}`}
-                size='md'
-                footer={
-                    <button
-                        type='button'
-                        onClick={() => {
-                            if (isAddingPrerequisite) return
-                            setIsPrerequisiteOpen(false)
-                            setSelectedSubject(null)
-                        }}
-                        className='rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 ml-auto'
-                    >
-                        Done
-                    </button>
-                }
-            >
-                <div className='space-y-4'>
-                    {prerequisiteError && (
-                        <div className='rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700'>
-                            {prerequisiteError}
-                        </div>
-                    )}
 
-                    <div>
-                        <label className='mb-2 block text-sm font-medium text-slate-700'>Add Prerequisite</label>
-                        <div className='flex gap-2'>
-                            <select
-                                value={selectedPrerequisiteId}
-                                onChange={(e) => setSelectedPrerequisiteId(e.target.value)}
-                                className='flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
-                            >
-                                <option value=''>Select a subject...</option>
-                                {getAvailablePrerequisites().map((subject) => (
-                                    <option key={subject.id} value={subject.id}>
-                                        {subject.code} - {subject.title}
-                                    </option>
-                                ))}
-                            </select>
-                            <button
-                                type='button'
-                                onClick={handleAddPrerequisite}
-                                disabled={isAddingPrerequisite || !selectedPrerequisiteId}
-                                className='rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60'
-                            >
-                                {isAddingPrerequisite ? 'Adding...' : 'Add'}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h3 className='mb-2 text-sm font-semibold text-slate-800'>Current Prerequisites</h3>
-                        {prerequisites.length === 0 ? (
-                            <p className='text-sm text-slate-500'>No prerequisites set yet.</p>
-                        ) : (
-                            <div className='space-y-2'>
-                                {prerequisites.map((prereq) => (
-                                    <div
-                                        key={prereq.id}
-                                        className='flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-3'
-                                    >
-                                        <span className='text-sm text-slate-700'>
-                                            {getSubjectLabel(prereq.prerequisiteSubjectID)}
-                                        </span>
-                                        <button
-                                            type='button'
-                                            onClick={() => handleDeletePrerequisite(prereq.id)}
-                                            className='text-red-600 hover:text-red-800'
-                                        >
-                                            <svg xmlns='http://www.w3.org/2000/svg' height='18px' viewBox='0 -960 960 960' width='18px' fill='currentColor'>
-                                                <path d='m256-200-56-56 224-224-224-224 56-56 224 224 224-224 56 56-224 224 224 224-56 56-224-224-224 224Z' />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </Modal>
         </main>
     )
 }
