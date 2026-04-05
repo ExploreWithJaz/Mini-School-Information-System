@@ -50,6 +50,12 @@ interface CourseOption {
   name: string;
 }
 
+interface Subject {
+  id: string;
+  code: string;
+  title: string;
+}
+
 export default function Grades() {
   const { user, token, loading: authLoading } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
@@ -65,6 +71,8 @@ export default function Grades() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [courses, setCourses] = useState<CourseOption[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [subjectMap, setSubjectMap] = useState<{ [key: string]: string }>({});
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isGradesModalOpen, setIsGradesModalOpen] = useState(false);
   const [gradesLoading, setGradesLoading] = useState(false);
@@ -173,6 +181,7 @@ export default function Grades() {
     if (!authLoading && user && token) {
       fetchStudents(1);
       fetchCourses();
+      fetchSubjects();
     }
   }, [authLoading, user, token]);
 
@@ -191,6 +200,25 @@ export default function Grades() {
       );
     } catch {
       setCourses([]);
+    }
+  };
+
+  // Fetch subjects
+  const fetchSubjects = async () => {
+    try {
+      const response = await apiCall("/subjects", { token });
+      const subjectsData = (response as Subject[]);
+      setSubjects(subjectsData);
+      
+      // Create a map of subject ID to title for quick lookup
+      const map: { [key: string]: string } = {};
+      subjectsData.forEach((subject) => {
+        map[subject.id] = subject.title;
+      });
+      setSubjectMap(map);
+    } catch {
+      setSubjects([]);
+      setSubjectMap({});
     }
   };
 
@@ -447,7 +475,7 @@ export default function Grades() {
               <tbody>
                 {grades.map((grade) => (
                   <tr key={grade.id} className="border-b hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium">{grade.subjectID}</td>
+                    <td className="px-4 py-3 font-medium">{subjectMap[grade.subjectID] || grade.subjectID}</td>
                     <td className="px-4 py-3 text-center">{grade.prelim}</td>
                     <td className="px-4 py-3 text-center">{grade.midterm}</td>
                     <td className="px-4 py-3 text-center">{grade.finals}</td>
