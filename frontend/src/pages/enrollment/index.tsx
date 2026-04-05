@@ -55,6 +55,7 @@ interface SubjectWithDetails extends Subject {
   prerequisites: Subject[]
   isReserved: boolean
   prerequisitesMet: boolean
+  isCompleted: boolean
   reservationId?: string
 }
 
@@ -299,11 +300,14 @@ export default function Enrollment() {
 
         const reservation = reservations.find((r) => r.subjectID === subject.id && r.status === 'reserved')
 
+        const isCompleted = grades.some((g) => g.subjectID === subject.id && g.studentID === studentInfo.id)
+
         return {
           ...subject,
           prerequisites: subjectPrereqs,
           isReserved: !!reservation,
           prerequisitesMet,
+          isCompleted,
           reservationId: reservation?.id
         }
       })
@@ -755,8 +759,8 @@ export default function Enrollment() {
                               ) : (
                                 <button
                                   onClick={() => openReservingModal(subject)}
-                                  disabled={subject.prerequisites.length > 0 && !subject.prerequisitesMet}
-                                  className='text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+                                  disabled={subject.prerequisites.length > 0 && !subject.prerequisitesMet || subject.isCompleted}
+                                  className='text-xs font-medium px-2 py-1 rounded bg-indigo-50 text-indigo-600 hover:bg-indigo-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed'
                                 >
                                   Reserve
                                 </button>
@@ -893,8 +897,8 @@ export default function Enrollment() {
                             ) : (
                               <button
                                 onClick={() => openReservingModal(subject)}
-                                disabled={subject.prerequisites.length > 0 && !subject.prerequisitesMet}
-                                className='text-xs font-medium px-2 py-1 rounded bg-indigo-50 text-indigo-600 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed'
+                                disabled={subject.prerequisites.length > 0 && !subject.prerequisitesMet || subject.isCompleted}
+                                className='text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed'
                               >
                                 Reserve
                               </button>

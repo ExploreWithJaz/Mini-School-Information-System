@@ -64,6 +64,17 @@ export async function createReservation(data: InputSubjectReservations): Promise
     }
   }
 
+  // 4. Check if student already has a grade for this subject (already completed)
+  const completionQuery = `
+    SELECT id FROM grades
+    WHERE student_id = $1 AND subject_id = $2
+  `;
+  const completionResult = await pool.query(completionQuery, [data.studentID, data.subjectID]);
+
+  if (completionResult.rows.length > 0) {
+    throw new Error('Student has already completed this subject');
+  }
+
   const query = `
     INSERT INTO subject_reservations (student_id, subject_id, reserved_at, status)
     VALUES ($1, $2, NOW(), $3)
