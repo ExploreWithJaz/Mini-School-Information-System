@@ -11,6 +11,7 @@ import Students from '../pages/students/index'
 import Courses from '@/pages/courses'
 import Subjects from '@/pages/subjects'
 import Reservations from '@/pages/reservations'
+import Grades from '@/pages/grades'
 
 function Page() {
   const { user, isAuthenticated, loading } = useAuth()
@@ -47,6 +48,8 @@ function Page() {
           return <Reservations />
         case 'Enrollment':
           return <Enrollment />
+        case 'Grades':
+          return <Grades />
         case 'Dashboard':
         default:
           return <AdminDashboard />
