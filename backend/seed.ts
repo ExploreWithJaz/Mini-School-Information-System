@@ -4,6 +4,7 @@ import { createCourse } from './service/courseService';
 import { createSubject } from './service/subjectsService';
 import { createStudent } from './service/studentsService';
 import { createPrerequisite } from './service/subjectPrerequisitesService';
+import { createGrade } from './service/gradesService';
 
 const ADMIN_CREDENTIALS = {
   email: 'admin@schoolsystem.com',
@@ -158,7 +159,59 @@ async function seed() {
     }
     console.log(`✓ Created ${students.length} students`);
 
+    // 6. CREATE GRADES FOR STUDENTS
+    console.log('\n6. Creating grades for students...');
+
+    // Define valid grade values (1.00 is highest, 3.00 is lowest, 5.00 is failed)
+    const validGrades = [1.00, 1.25, 1.50, 1.75, 2.00, 2.25, 2.50, 2.75, 3.00];
+    
+    // Helper function to generate random grade from valid grades
+    const randomGrade = () => validGrades[Math.floor(Math.random() * validGrades.length)];
+    
+    // For each student, create grades for their enrolled subjects
+    let gradeCount = 0;
+    for (const student of students) {
+      // Get subjects for this student's course
+      const courseSubjects = subjects.filter(s => s.courseID === student.courseId);
+      
+      // Create grades for each subject
+      for (const subject of courseSubjects) {
+        try {
+          // Generate random grades
+          const prelim = randomGrade();
+          const midterm = randomGrade();
+          const finals = randomGrade();
+          
+          // Calculate final grade as average rounded to nearest 0.25
+          const average = (prelim + midterm + finals) / 3;
+          const finalGrade = Math.round(average * 4) / 4;
+          
+          await createGrade({
+            studentID: student.id,
+            subjectID: subject.id,
+            courseID: student.courseId,
+            prelim,
+            midterm,
+            finals,
+            finalGrade,
+            remarks: '', // Empty remarks as user will fill this later
+            encodedByUserID: admin.id
+          });
+          gradeCount++;
+        } catch (error) {
+          console.warn(`  ⚠ Grade creation skipped for student ${student.id}, subject ${subject.id}`);
+        }
+      }
+    }
+    console.log(`✓ Created ${gradeCount} grade records`);
+
     console.log('\n✅ Seed data completed successfully!');
+    console.log(`\n--- GRADING SUMMARY ---`);
+    console.log(`  • 50 students created`);
+    console.log(`  • ${subjects.length} subjects total`);
+    console.log(`  • ${gradeCount} grade records created`);
+    console.log(`  • Grade range: 1.00 (highest) to 3.00 (lowest), 5.00 (failed)`);
+    console.log('------------------------');
     console.log('\n--- GENERAL EDUCATION SUBJECTS (Available to all courses) ---');
     generalEdSubjects.forEach(s => {
       console.log(`  • ${s.code}: ${s.title} (${s.units} units)`);
