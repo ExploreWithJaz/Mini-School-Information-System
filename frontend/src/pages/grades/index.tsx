@@ -73,6 +73,7 @@ export default function Grades() {
   const [courses, setCourses] = useState<CourseOption[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [subjectMap, setSubjectMap] = useState<{ [key: string]: string }>({});
+  const [subjectCodeMap, setSubjectCodeMap] = useState<{ [key: string]: string }>({});
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isGradesModalOpen, setIsGradesModalOpen] = useState(false);
   const [gradesLoading, setGradesLoading] = useState(false);
@@ -283,18 +284,23 @@ export default function Grades() {
   const fetchSubjects = async () => {
     try {
       const response = await apiCall("/subjects", { token });
-      const subjectsData = (response as Subject[]);
+      // Handle both direct array and wrapped response
+      const subjectsData = Array.isArray(response) ? response : (response.data || []);
       setSubjects(subjectsData);
       
-      // Create a map of subject ID to title for quick lookup
-      const map: { [key: string]: string } = {};
-      subjectsData.forEach((subject) => {
-        map[subject.id] = subject.title;
+      // Create a map of subject ID to title and code for quick lookup
+      const titleMap: { [key: string]: string } = {};
+      const codeMap: { [key: string]: string } = {};
+      subjectsData.forEach((subject: any) => {
+        titleMap[subject.id] = subject.title;
+        codeMap[subject.id] = subject.code;
       });
-      setSubjectMap(map);
+      setSubjectMap(titleMap);
+      setSubjectCodeMap(codeMap);
     } catch {
       setSubjects([]);
       setSubjectMap({});
+      setSubjectCodeMap({});
     }
   };
 
@@ -627,7 +633,8 @@ export default function Grades() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-100 border-b">
                   <tr>
-                    <th className="px-4 py-3 text-left font-semibold">Subject</th>
+                    <th className="px-4 py-3 text-left font-semibold">Subject Code</th>
+                    <th className="px-4 py-3 text-left font-semibold">Subject Title</th>
                     <th className="px-4 py-3 text-center font-semibold">Prelim</th>
                     <th className="px-4 py-3 text-center font-semibold">Midterm</th>
                     <th className="px-4 py-3 text-center font-semibold">Finals</th>
@@ -639,13 +646,14 @@ export default function Grades() {
                 <tbody>
                   {getFilteredGrades().length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
+                      <td colSpan={8} className="px-4 py-6 text-center text-gray-500">
                         No grades match the selected filters.
                       </td>
                     </tr>
                   ) : (
                     getFilteredGrades().map((grade) => (
                       <tr key={grade.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-xs">{subjectCodeMap[grade.subjectID] || grade.subjectID}</td>
                         <td className="px-4 py-3 font-medium">{subjectMap[grade.subjectID] || grade.subjectID}</td>
                         
                         {/* Prelim */}
