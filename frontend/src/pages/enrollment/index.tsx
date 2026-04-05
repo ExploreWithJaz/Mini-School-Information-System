@@ -4,6 +4,16 @@ import { useEffect, useState } from 'react'
 import { apiCall } from '@/lib/api'
 import Modal from '@/components/modal'
 
+interface StudentInfo {
+  id: string
+  studentNumber: string
+  firstName: string
+  lastName: string
+  email: string
+  birthDate: string
+  courseId: string
+}
+
 interface Course {
   id: string
   code: string
@@ -50,14 +60,21 @@ interface SubjectWithDetails extends Subject {
 
 export default function Enrollment() {
   const { user } = useAuth()
-  const [courses, setCourses] = useState<Course[]>([])
+  
+  // Student and course data
+  const [studentInfo, setStudentInfo] = useState<StudentInfo | null>(null)
+  const [enrolledCourse, setEnrolledCourse] = useState<Course | null>(null)
+  
+  // Subject data
   const [subjects, setSubjects] = useState<Subject[]>([])
   const [grades, setGrades] = useState<Grade[]>([])
   const [prerequisites, setPrerequisites] = useState<Prerequisite[]>([])
   const [reservations, setReservations] = useState<Reservation[]>([])
+  
+  // UI states
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [expandedCourse, setExpandedCourse] = useState<string | null>('0')
+  const [expandedCourse, setExpandedCourse] = useState<boolean>(true)
 
   // Modal states
   const [selectedSubject, setSelectedSubject] = useState<SubjectWithDetails | null>(null)
@@ -69,23 +86,60 @@ export default function Enrollment() {
   // Fetch all necessary data
   useEffect(() => {
     const fetchData = async () => {
-      if (!user?.id) return
+      if (!user?.id || !user?.email) return
 
       try {
         setLoading(true)
         setError(null)
 
-        const [coursesRes, subjectsRes, gradesRes, prereqRes, reservationsRes] = await Promise.all([
-          apiCall('/courses'),
+        // Fetch all students and find by email
+        const allStudentsRes = await apiCall('/students')
+        const allStudents = Array.isArray(allStudentsRes) ? allStudentsRes : allStudentsRes.data || []
+        
+        // Find the current student by matching email
+        const currentStudent = allStudents.find(
+          (s: any) => (s.email === user.email) || 
+                      (s.student_number === user.email) // Also try by student number if provided
+        )
+
+        if (!currentStudent) {
+          setError(`Student account not found for: ${user.email}. Please contact your administrator.`)
+          setLoading(false)
+          return
+        }
+
+        // Normalize student data
+        const normalizedStudent: StudentInfo = {
+          id: currentStudent.id,
+          studentNumber: currentStudent.student_number || currentStudent.studentNumber,
+          firstName: currentStudent.first_name || currentStudent.firstName,
+          lastName: currentStudent.last_name || currentStudent.lastName,
+          email: currentStudent.email,
+          birthDate: currentStudent.birth_date || currentStudent.birthDate,
+          courseId: currentStudent.course_id || currentStudent.courseId
+        }
+        setStudentInfo(normalizedStudent)
+
+        // Fetch courses and find the enrolled course
+        const coursesRes = await apiCall('/courses')
+        const coursesList = Array.isArray(coursesRes) ? coursesRes : coursesRes.data || []
+        
+        const studentCourse = coursesList.find((c: any) => c.id === normalizedStudent.courseId)
+        if (studentCourse) {
+          setEnrolledCourse(studentCourse)
+        } else {
+          setError('Enrolled course not found. Please contact your administrator.')
+          setLoading(false)
+          return
+        }
+
+        // Fetch other data in parallel
+        const [subjectsRes, gradesRes, prereqRes, reservationsRes] = await Promise.all([
           apiCall('/subjects'),
           apiCall('/grades'),
           apiCall('/subject-prerequisites'),
-          apiCall(`/students/${user.id}/reservations`)
+          apiCall(`/students/${normalizedStudent.id}/reservations`)
         ])
-
-        // Normalize courses
-        const coursesList = Array.isArray(coursesRes) ? coursesRes : coursesRes.data || []
-        setCourses(coursesList)
 
         // Normalize subjects - map courseID to courseId
         const subjectsList = (Array.isArray(subjectsRes) ? subjectsRes : subjectsRes.data || []).map(
@@ -94,7 +148,7 @@ export default function Enrollment() {
             code: s.code,
             title: s.title,
             units: s.units,
-            courseId: s.courseID || s.course_id || s.courseId // Handle different field names
+            courseId: s.courseID || s.course_id || s.courseId
           })
         )
         setSubjects(subjectsList)
@@ -133,6 +187,7 @@ export default function Enrollment() {
         )
         setReservations(reservationsList)
       } catch (err) {
+        console.error('Enrollment data fetch error:', err)
         setError(err instanceof Error ? err.message : 'Failed to load enrollment data')
       } finally {
         setLoading(false)
@@ -140,12 +195,14 @@ export default function Enrollment() {
     }
 
     fetchData()
-  }, [user?.id])
+  }, [user?.id, user?.email])
 
-  // Get enriched subjects with prerequisites and reservation status
-  const getEnrichedSubjects = (courseId: string): SubjectWithDetails[] => {
+  // Get enriched subjects for the student's course only
+  const getEnrichedSubjects = (): SubjectWithDetails[] => {
+    if (!studentInfo) return []
+    
     return subjects
-      .filter((s) => s.courseId === courseId)
+      .filter((s) => s.courseId === studentInfo.courseId)
       .map((subject) => {
         const subjectPrereqs = prerequisites
           .filter((p) => p.subjectID === subject.id)
@@ -167,6 +224,9 @@ export default function Enrollment() {
         }
       })
   }
+
+  const courseSubjects = getEnrichedSubjects()
+  const enrolledSubjectsCount = reservations.filter((r) => r.status === 'reserved').length
 
   const openDetailsModal = (subject: SubjectWithDetails) => {
     setSelectedSubject(subject)
@@ -229,36 +289,51 @@ export default function Enrollment() {
     }
   }
 
-  const enrolledSubjectsCount = reservations.filter((r) => r.status === 'reserved').length
-
   return (
     <section className='bg-[#f5f6fb] min-h-screen p-5'>
       <div className='mb-6'>
         <h1 className='text-3xl font-bold text-gray-900 mb-2'>Course Enrollment</h1>
-        <p className='text-gray-500'>Browse available courses and reserve subjects</p>
+        <p className='text-gray-500'>Browse available subjects for your enrolled course</p>
       </div>
 
-      {/* Summary Cards */}
-      <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-6'>
-        <div className='bg-white p-5 rounded-xl border border-gray-100'>
-          <div className='flex items-center justify-between'>
+      {/* Student Information Card */}
+      {studentInfo && (
+        <div className='bg-white p-6 rounded-xl border border-gray-100 mb-6'>
+          <div className='grid grid-cols-1 md:grid-cols-4 gap-6'>
             <div>
-              <p className='text-gray-500 text-sm font-medium'>Total Courses</p>
-              <p className='text-2xl font-bold text-gray-900 mt-1'>{courses.length}</p>
+              <p className='text-gray-500 text-sm font-medium uppercase tracking-widest mb-2'>Student Number</p>
+              <p className='text-lg font-bold text-gray-900'>{studentInfo.studentNumber}</p>
             </div>
-            <div className='w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center'>
-              <svg className='w-6 h-6 text-indigo-600' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 6.253v13m0-13C6.5 6.253 2 10.998 2 17s4.5 10.747 10 10.747c5.5 0 10-4.998 10-10.747 0-6.002-4.5-10.747-10-10.747z' />
-              </svg>
+            <div>
+              <p className='text-gray-500 text-sm font-medium uppercase tracking-widest mb-2'>Full Name</p>
+              <p className='text-lg font-bold text-gray-900'>
+                {studentInfo.firstName} {studentInfo.lastName}
+              </p>
             </div>
+            <div>
+              <p className='text-gray-500 text-sm font-medium uppercase tracking-widest mb-2'>Email</p>
+              <p className='text-sm text-gray-700 break-all'>{studentInfo.email}</p>
+            </div>
+            {enrolledCourse && (
+              <div>
+                <p className='text-gray-500 text-sm font-medium uppercase tracking-widest mb-2'>Enrolled Course</p>
+                <div>
+                  <p className='text-sm font-bold text-gray-900'>{enrolledCourse.code}</p>
+                  <p className='text-xs text-gray-600'>{enrolledCourse.name}</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
+      )}
 
+      {/* Summary Stats */}
+      <div className='grid grid-cols-1 md:grid-cols-2 gap-4 mb-6'>
         <div className='bg-white p-5 rounded-xl border border-gray-100'>
           <div className='flex items-center justify-between'>
             <div>
-              <p className='text-gray-500 text-sm font-medium'>Total Subjects</p>
-              <p className='text-2xl font-bold text-gray-900 mt-1'>{subjects.length}</p>
+              <p className='text-gray-500 text-sm font-medium'>Available Subjects</p>
+              <p className='text-2xl font-bold text-gray-900 mt-1'>{courseSubjects.length}</p>
             </div>
             <div className='w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center'>
               <svg className='w-6 h-6 text-blue-600' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
@@ -298,147 +373,148 @@ export default function Enrollment() {
             </div>
           </div>
         </div>
-      ) : (
-        <div className='flex flex-col gap-4'>
-          {courses.map((course, idx) => {
-            const courseSubjects = getEnrichedSubjects(course.id)
-            return (
-              <div key={course.id} className='bg-white border border-gray-100 rounded-xl overflow-hidden'>
-                {/* Course Header */}
-                <button
-                  onClick={() => setExpandedCourse(expandedCourse === course.id ? null : course.id)}
-                  className='w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors'
-                >
-                  <div className='flex flex-col items-start gap-1'>
-                    <h2 className='text-base font-semibold text-gray-900'>{course.name}</h2>
-                    {course.description && <p className='text-xs text-gray-400'>{course.description}</p>}
-                  </div>
-                  <div className='flex items-center gap-4'>
-                    <span className='text-xs font-medium px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100'>
-                      {course.code}
-                    </span>
-                    <span className='text-xs font-medium px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600'>
-                      {courseSubjects.length} subjects
-                    </span>
-                    <svg
-                      className={`w-5 h-5 text-gray-400 transition-transform ${
-                        expandedCourse === course.id ? 'rotate-180' : ''
+      ) : enrolledCourse ? (
+        <div className='bg-white border border-gray-100 rounded-xl overflow-hidden'>
+          {/* Course Header */}
+          <button
+            onClick={() => setExpandedCourse(!expandedCourse)}
+            className='w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors'
+          >
+            <div className='flex flex-col items-start gap-1'>
+              <h2 className='text-base font-semibold text-gray-900'>{enrolledCourse.name}</h2>
+              {enrolledCourse.description && <p className='text-xs text-gray-400'>{enrolledCourse.description}</p>}
+            </div>
+            <div className='flex items-center gap-4'>
+              <span className='text-xs font-medium px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100'>
+                {enrolledCourse.code}
+              </span>
+              <span className='text-xs font-medium px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600'>
+                {courseSubjects.length} subjects
+              </span>
+              <svg
+                className={`w-5 h-5 text-gray-400 transition-transform ${expandedCourse ? 'rotate-180' : ''}`}
+                fill='none'
+                stroke='currentColor'
+                viewBox='0 0 24 24'
+              >
+                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M19 14l-7 7m0 0l-7-7m7 7V3' />
+              </svg>
+            </div>
+          </button>
+
+          {/* Subjects Table */}
+          {expandedCourse && courseSubjects.length > 0 && (
+            <div className='border-t border-gray-100'>
+              <table className='w-full border-collapse'>
+                <thead>
+                  <tr className='bg-gray-50'>
+                    <th className='text-left text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3 border-b border-gray-100'>
+                      Subject Code
+                    </th>
+                    <th className='text-left text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3 border-b border-gray-100'>
+                      Subject Name
+                    </th>
+                    <th className='text-center text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3 border-b border-gray-100'>
+                      Units
+                    </th>
+                    <th className='text-center text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3 border-b border-gray-100'>
+                      Prerequisites
+                    </th>
+                    <th className='text-center text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3 border-b border-gray-100'>
+                      Status
+                    </th>
+                    <th className='text-center text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3 border-b border-gray-100'>
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {courseSubjects.map((subject, idx) => (
+                    <tr
+                      key={subject.id}
+                      className={`hover:bg-gray-50 transition-colors ${
+                        idx < courseSubjects.length - 1 ? 'border-b border-gray-50' : ''
                       }`}
-                      fill='none'
-                      stroke='currentColor'
-                      viewBox='0 0 24 24'
                     >
-                      <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M19 14l-7 7m0 0l-7-7m7 7V3' />
-                    </svg>
-                  </div>
-                </button>
-
-                {/* Subjects Table */}
-                {expandedCourse === course.id && courseSubjects.length > 0 && (
-                  <div className='border-t border-gray-100'>
-                    <table className='w-full border-collapse'>
-                      <thead>
-                        <tr className='bg-gray-50'>
-                          <th className='text-left text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3 border-b border-gray-100'>
-                            Subject Code
-                          </th>
-                          <th className='text-left text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3 border-b border-gray-100'>
-                            Subject Name
-                          </th>
-                          <th className='text-center text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3 border-b border-gray-100'>
-                            Units
-                          </th>
-                          <th className='text-center text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3 border-b border-gray-100'>
-                            Prerequisites
-                          </th>
-                          <th className='text-center text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3 border-b border-gray-100'>
-                            Status
-                          </th>
-                          <th className='text-center text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3 border-b border-gray-100'>
-                            Action
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {courseSubjects.map((subject, idx) => (
-                          <tr
-                            key={subject.id}
-                            className={`hover:bg-gray-50 transition-colors ${
-                              idx < courseSubjects.length - 1 ? 'border-b border-gray-50' : ''
-                            }`}
+                      <td className='px-6 py-3.5 text-xs font-medium text-gray-700'>{subject.code}</td>
+                      <td className='px-6 py-3.5 text-sm text-gray-800'>{subject.title}</td>
+                      <td className='px-6 py-3.5 text-center'>
+                        <span className='text-xs font-medium px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600'>
+                          {subject.units} units
+                        </span>
+                      </td>
+                      <td className='px-6 py-3.5 text-center'>
+                        {subject.prerequisites.length > 0 ? (
+                          <span className='text-xs font-medium px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100'>
+                            {subject.prerequisites.length} required
+                          </span>
+                        ) : (
+                          <span className='text-xs text-gray-500'>None</span>
+                        )}
+                      </td>
+                      <td className='px-6 py-3.5 text-center'>
+                        {subject.isReserved ? (
+                          <span className='text-xs font-medium px-2.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-100'>
+                            ✓ Reserved
+                          </span>
+                        ) : subject.prerequisites.length > 0 && !subject.prerequisitesMet ? (
+                          <span className='text-xs font-medium px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-100'>
+                            Prerequisites Not Met
+                          </span>
+                        ) : (
+                          <span className='text-xs font-medium px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600'>
+                            Available
+                          </span>
+                        )}
+                      </td>
+                      <td className='px-6 py-3.5 text-center'>
+                        <div className='flex items-center justify-center gap-2'>
+                          <button
+                            onClick={() => openDetailsModal(subject)}
+                            className='text-xs font-medium px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors'
                           >
-                            <td className='px-6 py-3.5 text-xs font-medium text-gray-700'>{subject.code}</td>
-                            <td className='px-6 py-3.5 text-sm text-gray-800'>{subject.title}</td>
-                            <td className='px-6 py-3.5 text-center'>
-                              <span className='text-xs font-medium px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600'>
-                                {subject.units} units
-                              </span>
-                            </td>
-                            <td className='px-6 py-3.5 text-center'>
-                              {subject.prerequisites.length > 0 ? (
-                                <span className='text-xs font-medium px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100'>
-                                  {subject.prerequisites.length} required
-                                </span>
-                              ) : (
-                                <span className='text-xs text-gray-500'>None</span>
-                              )}
-                            </td>
-                            <td className='px-6 py-3.5 text-center'>
-                              {subject.isReserved ? (
-                                <span className='text-xs font-medium px-2.5 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-100'>
-                                  ✓ Reserved
-                                </span>
-                              ) : subject.prerequisites.length > 0 && !subject.prerequisitesMet ? (
-                                <span className='text-xs font-medium px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-100'>
-                                  Prerequisites Not Met
-                                </span>
-                              ) : (
-                                <span className='text-xs font-medium px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600'>
-                                  Available
-                                </span>
-                              )}
-                            </td>
-                            <td className='px-6 py-3.5 text-center'>
-                              <div className='flex items-center justify-center gap-2'>
-                                <button
-                                  onClick={() => openDetailsModal(subject)}
-                                  className='text-xs font-medium px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors'
-                                >
-                                  Details
-                                </button>
-                                {subject.isReserved ? (
-                                  <button
-                                    onClick={() => openUnreservingModal(subject)}
-                                    className='text-xs font-medium px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors'
-                                  >
-                                    Unreserve
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={() => openReservingModal(subject)}
-                                    disabled={subject.prerequisites.length > 0 && !subject.prerequisitesMet}
-                                    className='text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
-                                  >
-                                    Reserve
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                            Details
+                          </button>
+                          {subject.isReserved ? (
+                            <button
+                              onClick={() => openUnreservingModal(subject)}
+                              className='text-xs font-medium px-3 py-1.5 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors'
+                            >
+                              Unreserve
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => openReservingModal(subject)}
+                              disabled={subject.prerequisites.length > 0 && !subject.prerequisitesMet}
+                              className='text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
+                            >
+                              Reserve
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-                {expandedCourse === course.id && courseSubjects.length === 0 && (
-                  <div className='p-6 text-center'>
-                    <p className='text-gray-500 text-sm'>No subjects available for this course</p>
-                  </div>
-                )}
-              </div>
-            )
-          })}
+          {expandedCourse && courseSubjects.length === 0 && (
+            <div className='p-6 text-center'>
+              <p className='text-gray-500 text-sm'>No subjects available for your course</p>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className='bg-white rounded-xl border border-gray-100 p-10'>
+          <div className='text-center'>
+            <svg className='w-12 h-12 text-gray-300 mx-auto mb-3' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+              <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 9v2m0 4v2m0 4v2M6.343 17.657l1.414-1.414M17.657 6.343l-1.414 1.414M9.172 9.172L7.757 7.757M16.243 16.243l-1.414 1.414' />
+            </svg>
+            <p className='text-gray-500 font-medium'>Course information not available</p>
+            <p className='text-gray-400 text-sm mt-1'>Please contact your administrator</p>
+          </div>
         </div>
       )}
 
