@@ -188,6 +188,26 @@ export default function Grades() {
     }
   };
 
+  const handleDeleteGrade = async (gradeId: string) => {
+  if (!window.confirm("Are you sure you want to delete this grade?")) return;
+  
+  try {
+    setIsSaving(true);
+    await apiCall(`/grades/${gradeId}`, {
+      method: "DELETE",
+      token
+    });
+
+    // Update local state
+    setGrades((prev) => prev.filter((g) => g.id !== gradeId));
+    setError(null);
+  } catch (err) {
+    setError(err instanceof Error ? err.message : "Failed to delete grade");
+  } finally {
+    setIsSaving(false);
+  }
+};
+
   // Calculate final grade (weighted average: prelim 20%, midterm 30%, finals 50%)
   const calculateFinalGrade = (prelim: number, midterm: number, finals: number): number => {
     return (prelim * 0.2) + (midterm * 0.3) + (finals * 0.5);
@@ -800,26 +820,34 @@ export default function Grades() {
                               </button>
                             </div>
                           ) : (
-                            <button
-                              onClick={() => {
-                                setEditingGradeId(grade.id);
-                                setEditingGrades((prev) => ({
-                                  ...prev,
-                                  [grade.id]: {
-                                    prelim: grade.prelim,
-                                    midterm: grade.midterm,
-                                    finals: grade.finals
-                                  }
-                                }));
-                                setEditingRemarks((prev) => ({
-                                  ...prev,
-                                  [grade.id]: grade.remarks
-                                }));
-                              }}
-                              className="px-3 py-1 text-xs bg-indigo-500 text-white rounded hover:bg-indigo-600 font-medium transition-colors"
-                            >
-                              Edit
-                            </button>
+                            <div className="flex gap-1 justify-center">
+                              <button
+                                onClick={() => {
+                                  setEditingGradeId(grade.id);
+                                  setEditingGrades((prev) => ({
+                                    ...prev,
+                                    [grade.id]: {
+                                      prelim: grade.prelim,
+                                      midterm: grade.midterm,
+                                      finals: grade.finals
+                                    }
+                                  }));
+                                  setEditingRemarks((prev) => ({
+                                    ...prev,
+                                    [grade.id]: grade.remarks
+                                  }));
+                                }}
+                                className="px-3 py-1 text-xs bg-indigo-500 text-white rounded hover:bg-indigo-600 font-medium transition-colors"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteGrade(grade.id)}
+                                className="px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 font-medium transition-colors"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>
