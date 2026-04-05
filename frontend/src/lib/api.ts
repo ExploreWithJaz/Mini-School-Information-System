@@ -10,17 +10,15 @@ export async function apiCall(
 ) {
   const { token, ...rest } = options
 
-  const headers: HeadersInit = {
-    ...rest.headers,
-  }
+  const headers = new Headers(rest.headers)
 
   const hasBody = rest.body !== undefined && rest.body !== null
-  if (hasBody && !(rest.body instanceof FormData) && !(headers as Record<string, string>)['Content-Type']) {
-    ;(headers as Record<string, string>)['Content-Type'] = 'application/json'
+  if (hasBody && !(rest.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
   }
 
   if (token) {
-    headers.Authorization = `Bearer ${token}`
+    headers.set('Authorization', `Bearer ${token}`)
   }
 
   const response = await fetch(`${API_URL}${endpoint}`, {
