@@ -79,6 +79,15 @@ export default function Grades() {
   const [editingGradeId, setEditingGradeId] = useState<string | null>(null);
   const [editingRemarks, setEditingRemarks] = useState<{ [key: string]: string }>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [editingGrades, setEditingGrades] = useState<{
+    [key: string]: { prelim?: number; midterm?: number; finals?: number }
+  }>({});
+  const [gradeFilter, setGradeFilter] = useState({
+    minGrade: "",
+    maxGrade: "",
+    remarks: "",
+    subjectId: ""
+  });
 
   // Fetch students
   const fetchStudents = async (page = 1) => {
@@ -131,6 +140,8 @@ export default function Grades() {
       
       setGrades(convertedGrades);
       setEditingRemarks({});
+      setEditingGrades({});
+      setGradeFilter({ minGrade: "", maxGrade: "", remarks: "", subjectId: "" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch grades");
       setGrades([]);
@@ -174,6 +185,71 @@ export default function Grades() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Calculate final grade (weighted average: prelim 20%, midterm 30%, finals 50%)
+  const calculateFinalGrade = (prelim: number, midterm: number, finals: number): number => {
+    return (prelim * 0.2) + (midterm * 0.3) + (finals * 0.5);
+  };
+
+  // Update grades (prelim, midterm, finals)
+  const handleUpdateGrades = async (gradeId: string) => {
+    if (!selectedStudent || !editingGrades[gradeId]) return;
+
+    try {
+      setIsSaving(true);
+      const grade = grades.find((g) => g.id === gradeId);
+      if (!grade) return;
+
+      const prelim = editingGrades[gradeId].prelim ?? grade.prelim;
+      const midterm = editingGrades[gradeId].midterm ?? grade.midterm;
+      const finals = editingGrades[gradeId].finals ?? grade.finals;
+      const finalGrade = calculateFinalGrade(prelim, midterm, finals);
+
+      await apiCall(`/grades/${gradeId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          prelim,
+          midterm,
+          finals,
+          finalGrade
+        }),
+        token
+      });
+
+      // Update local state
+      setGrades((prev) =>
+        prev.map((g) =>
+          g.id === gradeId
+            ? { ...g, prelim, midterm, finals, finalGrade }
+            : g
+        )
+      );
+
+      setEditingGradeId(null);
+      setEditingGrades((prev) => {
+        const newState = { ...prev };
+        delete newState[gradeId];
+        return newState;
+      });
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update grades");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Filter grades based on criteria
+  const getFilteredGrades = (): Grade[] => {
+    return grades.filter((grade) => {
+      const matchesMinGrade = !gradeFilter.minGrade || grade.finalGrade >= parseFloat(gradeFilter.minGrade);
+      const matchesMaxGrade = !gradeFilter.maxGrade || grade.finalGrade <= parseFloat(gradeFilter.maxGrade);
+      const matchesRemarks = !gradeFilter.remarks || grade.remarks.toLowerCase().includes(gradeFilter.remarks.toLowerCase());
+      const matchesSubject = !gradeFilter.subjectId || grade.subjectID === gradeFilter.subjectId;
+
+      return matchesMinGrade && matchesMaxGrade && matchesRemarks && matchesSubject;
+    });
   };
 
   // Load initial data
@@ -443,6 +519,8 @@ export default function Grades() {
           setGrades([]);
           setEditingGradeId(null);
           setEditingRemarks({});
+          setEditingGrades({});
+          setGradeFilter({ minGrade: "", maxGrade: "", remarks: "", subjectId: "" });
         }}
         title={`Grades for ${selectedStudent?.firstName} ${selectedStudent?.lastName}`}
         size="xl"
@@ -459,93 +537,320 @@ export default function Grades() {
             No grades found for this student.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-100 border-b">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Subject</th>
-                  <th className="px-4 py-3 text-center font-semibold">Prelim</th>
-                  <th className="px-4 py-3 text-center font-semibold">Midterm</th>
-                  <th className="px-4 py-3 text-center font-semibold">Finals</th>
-                  <th className="px-4 py-3 text-center font-semibold">Final Grade</th>
-                  <th className="px-4 py-3 text-left font-semibold">Remarks</th>
-                  <th className="px-4 py-3 text-center font-semibold">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {grades.map((grade) => (
-                  <tr key={grade.id} className="border-b hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium">{subjectMap[grade.subjectID] || grade.subjectID}</td>
-                    <td className="px-4 py-3 text-center">{grade.prelim}</td>
-                    <td className="px-4 py-3 text-center">{grade.midterm}</td>
-                    <td className="px-4 py-3 text-center">{grade.finals}</td>
-                    <td className="px-4 py-3 text-center font-semibold">
-                      {grade.finalGrade.toFixed(2)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {editingGradeId === grade.id ? (
-                        <input
-                          type="text"
-                          value={editingRemarks[grade.id] ?? grade.remarks}
-                          onChange={(e) =>
-                            setEditingRemarks((prev) => ({
-                              ...prev,
-                              [grade.id]: e.target.value
-                            }))
-                          }
-                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                          placeholder="Enter remarks..."
-                        />
-                      ) : (
-                        <span>{grade.remarks || "—"}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {editingGradeId === grade.id ? (
-                        <div className="flex gap-1 justify-center">
-                          <button
-                            onClick={() =>
-                              handleUpdateRemarks(grade.id)
-                            }
-                            disabled={isSaving}
-                            className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
-                          >
-                            Save
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditingGradeId(null);
-                              setEditingRemarks((prev) => {
-                                const newState = { ...prev };
-                                delete newState[grade.id];
-                                return newState;
-                              });
-                            }}
-                            disabled={isSaving}
-                            className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500 disabled:opacity-50"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setEditingGradeId(grade.id);
-                            setEditingRemarks((prev) => ({
-                              ...prev,
-                              [grade.id]: grade.remarks
-                            }));
-                          }}
-                          className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600"
-                        >
-                          Edit
-                        </button>
-                      )}
-                    </td>
+          <div className="space-y-4">
+            {/* Filter Section */}
+            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <h3 className="text-sm font-semibold text-gray-900 mb-3">Filter Grades</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Min Grade
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={gradeFilter.minGrade}
+                    onChange={(e) =>
+                      setGradeFilter((prev) => ({ ...prev, minGrade: e.target.value }))
+                    }
+                    placeholder="Min"
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Max Grade
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={gradeFilter.maxGrade}
+                    onChange={(e) =>
+                      setGradeFilter((prev) => ({ ...prev, maxGrade: e.target.value }))
+                    }
+                    placeholder="Max"
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Subject
+                  </label>
+                  <select
+                    value={gradeFilter.subjectId}
+                    onChange={(e) =>
+                      setGradeFilter((prev) => ({ ...prev, subjectId: e.target.value }))
+                    }
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">All Subjects</option>
+                    {[...new Set(grades.map((g) => g.subjectID))].map((subjectId) => (
+                      <option key={subjectId} value={subjectId}>
+                        {subjectMap[subjectId] || subjectId}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Remarks
+                  </label>
+                  <input
+                    type="text"
+                    value={gradeFilter.remarks}
+                    onChange={(e) =>
+                      setGradeFilter((prev) => ({ ...prev, remarks: e.target.value }))
+                    }
+                    placeholder="Search remarks..."
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+              {(gradeFilter.minGrade || gradeFilter.maxGrade || gradeFilter.remarks || gradeFilter.subjectId) && (
+                <button
+                  onClick={() =>
+                    setGradeFilter({ minGrade: "", maxGrade: "", remarks: "", subjectId: "" })
+                  }
+                  className="mt-2 text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+
+            {/* Grades Table */}
+            <div className="overflow-x-auto border border-gray-200 rounded-lg">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-100 border-b">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold">Subject</th>
+                    <th className="px-4 py-3 text-center font-semibold">Prelim</th>
+                    <th className="px-4 py-3 text-center font-semibold">Midterm</th>
+                    <th className="px-4 py-3 text-center font-semibold">Finals</th>
+                    <th className="px-4 py-3 text-center font-semibold">Final Grade</th>
+                    <th className="px-4 py-3 text-left font-semibold">Remarks</th>
+                    <th className="px-4 py-3 text-center font-semibold">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {getFilteredGrades().length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
+                        No grades match the selected filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    getFilteredGrades().map((grade) => (
+                      <tr key={grade.id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium">{subjectMap[grade.subjectID] || grade.subjectID}</td>
+                        
+                        {/* Prelim */}
+                        <td className="px-4 py-3 text-center">
+                          {editingGradeId === grade.id ? (
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.1"
+                              value={editingGrades[grade.id]?.prelim ?? grade.prelim}
+                              onChange={(e) =>
+                                setEditingGrades((prev) => ({
+                                  ...prev,
+                                  [grade.id]: {
+                                    ...prev[grade.id],
+                                    prelim: parseFloat(e.target.value) || 0
+                                  }
+                                }))
+                              }
+                              className="w-16 px-2 py-1 border border-gray-300 rounded text-center text-sm"
+                            />
+                          ) : (
+                            <span>{grade.prelim.toFixed(2)}</span>
+                          )}
+                        </td>
+
+                        {/* Midterm */}
+                        <td className="px-4 py-3 text-center">
+                          {editingGradeId === grade.id ? (
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.1"
+                              value={editingGrades[grade.id]?.midterm ?? grade.midterm}
+                              onChange={(e) =>
+                                setEditingGrades((prev) => ({
+                                  ...prev,
+                                  [grade.id]: {
+                                    ...prev[grade.id],
+                                    midterm: parseFloat(e.target.value) || 0
+                                  }
+                                }))
+                              }
+                              className="w-16 px-2 py-1 border border-gray-300 rounded text-center text-sm"
+                            />
+                          ) : (
+                            <span>{grade.midterm.toFixed(2)}</span>
+                          )}
+                        </td>
+
+                        {/* Finals */}
+                        <td className="px-4 py-3 text-center">
+                          {editingGradeId === grade.id ? (
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.1"
+                              value={editingGrades[grade.id]?.finals ?? grade.finals}
+                              onChange={(e) =>
+                                setEditingGrades((prev) => ({
+                                  ...prev,
+                                  [grade.id]: {
+                                    ...prev[grade.id],
+                                    finals: parseFloat(e.target.value) || 0
+                                  }
+                                }))
+                              }
+                              className="w-16 px-2 py-1 border border-gray-300 rounded text-center text-sm"
+                            />
+                          ) : (
+                            <span>{grade.finals.toFixed(2)}</span>
+                          )}
+                        </td>
+
+                        {/* Final Grade (Auto-calculated) */}
+                        <td className="px-4 py-3 text-center font-semibold">
+                          {editingGradeId === grade.id ? (
+                            <span className="px-2 py-1 rounded bg-yellow-50 text-yellow-900 text-xs font-medium">
+                              {calculateFinalGrade(
+                                editingGrades[grade.id]?.prelim ?? grade.prelim,
+                                editingGrades[grade.id]?.midterm ?? grade.midterm,
+                                editingGrades[grade.id]?.finals ?? grade.finals
+                              ).toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-1 rounded bg-blue-50 text-blue-900">
+                              {grade.finalGrade.toFixed(2)}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Remarks */}
+                        <td className="px-4 py-3">
+                          {editingGradeId === grade.id ? (
+                            <input
+                              type="text"
+                              value={editingRemarks[grade.id] ?? grade.remarks}
+                              onChange={(e) =>
+                                setEditingRemarks((prev) => ({
+                                  ...prev,
+                                  [grade.id]: e.target.value
+                                }))
+                              }
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                              placeholder="Enter remarks..."
+                            />
+                          ) : (
+                            <span className="text-gray-600">{grade.remarks || "—"}</span>
+                          )}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-4 py-3 text-center">
+                          {editingGradeId === grade.id ? (
+                            <div className="flex gap-1 justify-center">
+                              <button
+                                onClick={() => handleUpdateGrades(grade.id)}
+                                disabled={isSaving}
+                                className="px-2 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50 font-medium transition-colors"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingGradeId(null);
+                                  setEditingGrades((prev) => {
+                                    const newState = { ...prev };
+                                    delete newState[grade.id];
+                                    return newState;
+                                  });
+                                  setEditingRemarks((prev) => {
+                                    const newState = { ...prev };
+                                    delete newState[grade.id];
+                                    return newState;
+                                  });
+                                }}
+                                disabled={isSaving}
+                                className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500 disabled:opacity-50 font-medium transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setEditingGradeId(grade.id);
+                                setEditingGrades((prev) => ({
+                                  ...prev,
+                                  [grade.id]: {
+                                    prelim: grade.prelim,
+                                    midterm: grade.midterm,
+                                    finals: grade.finals
+                                  }
+                                }));
+                                setEditingRemarks((prev) => ({
+                                  ...prev,
+                                  [grade.id]: grade.remarks
+                                }));
+                              }}
+                              className="px-3 py-1 text-xs bg-indigo-500 text-white rounded hover:bg-indigo-600 font-medium transition-colors"
+                            >
+                              Edit
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Grade Summary */}
+            {getFilteredGrades().length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div>
+                  <p className="text-xs text-gray-600 font-medium">Total Grades</p>
+                  <p className="text-lg font-bold text-gray-900">{getFilteredGrades().length}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600 font-medium">Avg Final Grade</p>
+                  <p className="text-lg font-bold text-indigo-600">
+                    {(
+                      getFilteredGrades().reduce((sum, g) => sum + g.finalGrade, 0) /
+                      getFilteredGrades().length
+                    ).toFixed(2)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600 font-medium">Highest Grade</p>
+                  <p className="text-lg font-bold text-green-600">
+                    {Math.max(...getFilteredGrades().map((g) => g.finalGrade)).toFixed(2)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600 font-medium">Lowest Grade</p>
+                  <p className="text-lg font-bold text-red-600">
+                    {Math.min(...getFilteredGrades().map((g) => g.finalGrade)).toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Modal>
