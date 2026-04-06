@@ -75,15 +75,19 @@ export async function createReservation(data: InputSubjectReservations): Promise
     }
   }
 
-  // 4. Check if student already has a grade for this subject (already completed)
+  // 4. Check if student already has a PASSING grade for this subject
   const completionQuery = `
-    SELECT id FROM grades
+    SELECT id, final_grade FROM grades
     WHERE student_id = $1 AND subject_id = $2
   `;
   const completionResult = await pool.query(completionQuery, [data.studentID, data.subjectID]);
 
   if (completionResult.rows.length > 0) {
-    throw new Error('Student has already completed this subject');
+    const finalGrade = completionResult.rows[0].final_grade;
+    if (finalGrade >= 75) {
+      throw new Error('Student has already completed this subject with a passing grade');
+    }
+    // If grade < 75, allow retake - continue execution
   }
 
   const query = `

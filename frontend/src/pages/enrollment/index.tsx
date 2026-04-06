@@ -304,12 +304,12 @@ export default function Enrollment() {
           .filter(Boolean) as Subject[]
 
         const prerequisitesMet = subjectPrereqs.every((prereq) =>
-          grades.some((g) => g.subjectID === prereq.id && g.studentID === studentInfo.id)
+          grades.some((g) => g.subjectID === prereq.id && g.studentID === studentInfo.id && g.finalGrade >= 75)
         )
 
         const reservation = reservations.find((r) => r.subjectID === subject.id && r.status === 'reserved')
 
-        const isCompleted = grades.some((g) => g.subjectID === subject.id && g.studentID === studentInfo.id)
+        const isCompleted = grades.some((g) => g.subjectID === subject.id && g.studentID === studentInfo.id && g.finalGrade >= 75)
 
         return {
           ...subject,
