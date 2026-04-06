@@ -60,6 +60,23 @@ interface SubjectWithDetails extends Subject {
   reservationId?: string
 }
 
+const isPassingGrade = (grade: Grade): boolean => {
+  const normalizedRemarks = (grade.remarks || '').trim().toLowerCase()
+
+  if (normalizedRemarks === 'passed') return true
+  if (normalizedRemarks === 'failed') return false
+
+  const numericGrade = Number(grade.finalGrade)
+  if (Number.isNaN(numericGrade)) return false
+
+  // Support both 1.00-5.00 scale (<=3.00 is passing) and percentage scale (>=75 is passing)
+  if (numericGrade <= 5) {
+    return numericGrade <= 3
+  }
+
+  return numericGrade >= 75
+}
+
 export default function Enrollment() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'Admin'
@@ -253,7 +270,7 @@ export default function Enrollment() {
 
         // Fetch grades and reservations for this student
         const [gradesRes, reservationsRes] = await Promise.all([
-          apiCall('/grades'),
+          apiCall(`/grades?studentId=${currentStudent.id}`),  // ← Filter by student
           apiCall(`/students/${currentStudent.id}/reservations`)
         ])
 
@@ -263,7 +280,7 @@ export default function Enrollment() {
             id: g.id,
             studentID: g.studentID || g.student_id,
             subjectID: g.subjectID || g.subject_id,
-            finalGrade: g.finalGrade || g.final_grade,
+            finalGrade: Number(g.finalGrade ?? g.final_grade),
             remarks: g.remarks
           })
         )
@@ -304,12 +321,12 @@ export default function Enrollment() {
           .filter(Boolean) as Subject[]
 
         const prerequisitesMet = subjectPrereqs.every((prereq) =>
-          grades.some((g) => g.subjectID === prereq.id && g.studentID === studentInfo.id && g.finalGrade >= 75)
+          grades.some((g) => g.subjectID === prereq.id && g.studentID === studentInfo.id && isPassingGrade(g))
         )
 
         const reservation = reservations.find((r) => r.subjectID === subject.id && r.status === 'reserved')
 
-        const isCompleted = grades.some((g) => g.subjectID === subject.id && g.studentID === studentInfo.id && g.finalGrade >= 75)
+        const isCompleted = grades.some((g) => g.subjectID === subject.id && g.studentID === studentInfo.id && isPassingGrade(g))
 
         return {
           ...subject,
@@ -366,14 +383,14 @@ export default function Enrollment() {
   }
 
   const handleUnreserveSubject = async () => {
-    if (!selectedSubject || !selectedSubject.reservationId) return
+    if (!selectedSubject || !selectedSubject.reservationId || !studentInfo?.id) return
 
     try {
       setIsProcessing(true)
       setError(null)
 
       await apiCall(
-        `/students/${selectedSubject.reservationId}/reservations/${selectedSubject.reservationId}`,
+        `/students/${studentInfo.id}/reservations/${selectedSubject.reservationId}`,
         {
           method: 'DELETE'
         }
