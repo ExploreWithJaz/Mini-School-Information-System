@@ -7,6 +7,33 @@ import { createStudent } from './service/studentsService';
 import { createPrerequisite } from './service/subjectPrerequisitesService';
 import { createGrade } from './service/gradesService';
 
+// Check if database is already seeded
+async function isDatabaseSeeded(): Promise<boolean> {
+  try {
+    const result = await pool.query('SELECT COUNT(*) FROM courses');
+    const count = parseInt(result.rows[0].count, 10);
+    return count > 0;
+  } catch (error) {
+    // Table doesn't exist yet, database is not seeded
+    return false;
+  }
+}
+
+// Verify database structure
+async function checkDatabaseTables(): Promise<boolean> {
+  try {
+    const result = await pool.query(`
+      SELECT EXISTS(
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_name IN ('users', 'courses', 'subjects', 'students', 'grades')
+      )
+    `);
+    return result.rows[0].exists;
+  } catch (error) {
+    return false;
+  }
+}
+
 const ADMIN_CREDENTIALS = {
   email: 'admin@schoolsystem.com',
   password: 'AdminSecure2024!',
@@ -105,11 +132,21 @@ async function initializeDatabase() {
 
 async function seed() {
   try {
-    console.log('Starting seed data...');
+    console.log('Starting seed data...\n');
+    
+    // Check if database is already seeded
+    const alreadySeeded = await isDatabaseSeeded();
+    if (alreadySeeded) {
+      console.log('✓ Database already seeded with data. Skipping seed process.');
+      console.log('\nIf you need to reseed the database, run:');
+      console.log('  npm run reset-seed  (clears all data)');
+      console.log('  then you can run: npm run seed\n');
+      process.exit(0);
+    }
     
     // Initialize database tables first
     await initializeDatabase();
-
+    
     // 1. CREATE ADMIN USER
     console.log('\n1. Creating admin user...');
     const existingAdmin = await getUserByEmail(ADMIN_CREDENTIALS.email);

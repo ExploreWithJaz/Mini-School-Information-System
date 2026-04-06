@@ -29,8 +29,8 @@ RUN npm ci --only=production
 # Copy built application from builder stage
 COPY --from=builder /app . 
 
-# Expose the port (Render will use PORT env var, but we expose 3001 as default)
+# Expose the port
 EXPOSE 3001
 
-# Optional: Run seed on startup if SEED_DATABASE flag is set
-CMD sh -c 'if [ "$SEED_DATABASE" = "true" ]; then npm run seed && npm start; else npm start; fi'
+# Always run seed (it will skip if data exists), then start server
+CMD npm run seed && npm start
