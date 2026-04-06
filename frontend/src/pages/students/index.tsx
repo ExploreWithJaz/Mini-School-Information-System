@@ -62,7 +62,17 @@ export default function Students() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isAddOpen, setIsAddOpen] = useState(false)
+  const [isAdding, setIsAdding] = useState(false)
   const [editForm, setEditForm] = useState<StudentForm>({
+    studentNumber: '',
+    firstName: '',
+    lastName: '',
+    email: '',
+    birthDate: '',
+    courseId: ''
+  })
+  const [addForm, setAddForm] = useState<StudentForm>({
     studentNumber: '',
     firstName: '',
     lastName: '',
@@ -247,6 +257,56 @@ export default function Students() {
       setError(err instanceof Error ? err.message : 'Failed to delete student')
     } finally {
       setIsDeleting(false)
+    }
+  }
+
+  const resetAddForm = () => {
+    setAddForm({
+      studentNumber: '',
+      firstName: '',
+      lastName: '',
+      email: '',
+      birthDate: '',
+      courseId: ''
+    })
+  }
+
+  const handleAddStudent = async () => {
+    if (
+      !addForm.studentNumber.trim() ||
+      !addForm.firstName.trim() ||
+      !addForm.lastName.trim() ||
+      !addForm.email.trim() ||
+      !addForm.birthDate ||
+      !addForm.courseId
+    ) {
+      setError('Please fill in all required fields')
+      return
+    }
+
+    try {
+      setIsAdding(true)
+      setError(null)
+
+      await apiCall('/students', {
+        method: 'POST',
+        body: JSON.stringify({
+          studentNumber: addForm.studentNumber.trim(),
+          firstName: addForm.firstName.trim(),
+          lastName: addForm.lastName.trim(),
+          email: addForm.email.trim(),
+          birthDate: addForm.birthDate,
+          courseId: addForm.courseId
+        })
+      })
+
+      setIsAddOpen(false)
+      resetAddForm()
+      await fetchStudents(1)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add student')
+    } finally {
+      setIsAdding(false)
     }
   }
   
@@ -471,7 +531,10 @@ STU003,Bob,Johnson,bob.johnson@example.com,2000-03-10,COURSE_ID_HERE`
             </button>
             <button
               type='button'
-              onClick={() => router.push('/students/add')}
+              onClick={() => {
+                resetAddForm()
+                setIsAddOpen(true)
+              }}
               className='px-4 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer'
             >
               Add Student
@@ -796,6 +859,105 @@ STU003,Bob,Johnson,bob.johnson@example.com,2000-03-10,COURSE_ID_HERE`
             <select
               value={editForm.courseId}
               onChange={(e) => setEditForm((prev) => ({ ...prev, courseId: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            >
+              <option value=''>Select course</option>
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.code} - {course.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </Modal>
+      <Modal
+        isOpen={isAddOpen}
+        onClose={() => {
+          if (isAdding) return
+          setIsAddOpen(false)
+        }}
+        title='Add Student'
+        size='lg'
+        footer={
+          <div className='flex items-center justify-end gap-2'>
+            <button
+              type='button'
+              onClick={() => {
+                if (isAdding) return
+                setIsAddOpen(false)
+              }}
+              className='rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50'
+            >
+              Cancel
+            </button>
+            <button
+              type='button'
+              onClick={handleAddStudent}
+              disabled={isAdding}
+              className='rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60'
+            >
+              {isAdding ? 'Saving...' : 'Add Student'}
+            </button>
+          </div>
+        }
+      >
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>Student Number</label>
+            <input
+              type='text'
+              value={addForm.studentNumber}
+              onChange={(e) => setAddForm((prev) => ({ ...prev, studentNumber: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            />
+          </div>
+
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>Email</label>
+            <input
+              type='email'
+              value={addForm.email}
+              onChange={(e) => setAddForm((prev) => ({ ...prev, email: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            />
+          </div>
+
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>First Name</label>
+            <input
+              type='text'
+              value={addForm.firstName}
+              onChange={(e) => setAddForm((prev) => ({ ...prev, firstName: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            />
+          </div>
+
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>Last Name</label>
+            <input
+              type='text'
+              value={addForm.lastName}
+              onChange={(e) => setAddForm((prev) => ({ ...prev, lastName: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            />
+          </div>
+
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>Birth Date</label>
+            <input
+              type='date'
+              value={addForm.birthDate}
+              onChange={(e) => setAddForm((prev) => ({ ...prev, birthDate: e.target.value }))}
+              className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
+            />
+          </div>
+
+          <div>
+            <label className='mb-1 block text-sm font-medium text-slate-700'>Course</label>
+            <select
+              value={addForm.courseId}
+              onChange={(e) => setAddForm((prev) => ({ ...prev, courseId: e.target.value }))}
               className='w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400'
             >
               <option value=''>Select course</option>
