@@ -262,10 +262,20 @@ async function seed() {
       // ARTS prerequisites
       { subjectID: subjects[11].id, prerequisiteSubjectID: subjects[9].id }, // ARTS201 requires ARTS101
       { subjectID: subjects[12].id, prerequisiteSubjectID: subjects[9].id }, // ARTS202 requires ARTS101
-      
-      // General education prerequisite (CHI2 requires CHI1)
-      { subjectID: genEdByCode['CHI2'][0].id, prerequisiteSubjectID: genEdByCode['CHI1'][0].id }
     ];
+
+    // General education prerequisites (only for same course instances)
+    for (const course of coursesList) {
+      const courseGenEd = genEdByCode['CHI1']?.find(s => s.courseID === course.id);
+      const courseGenEd2 = genEdByCode['CHI2']?.find(s => s.courseID === course.id);
+      
+      if (courseGenEd && courseGenEd2) {
+        prerequisites.push({
+          subjectID: courseGenEd2.id,
+          prerequisiteSubjectID: courseGenEd.id
+        });
+      }
+    }
 
     for (const prereq of prerequisites) {
       try {
