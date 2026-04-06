@@ -70,6 +70,14 @@ interface Subject {
   title: string;
 }
 
+interface NewGradeForm {
+  subjectID: string;
+  prelim: string;
+  midterm: string;
+  finals: string;
+  remarks: string;
+}
+
 export default function Grades() {
   const { user, token, loading: authLoading } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
@@ -85,6 +93,7 @@ export default function Grades() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [courses, setCourses] = useState<CourseOption[]>([]);
+  const [courseSubjects, setCourseSubjects] = useState<Subject[]>([]);
   const [subjectMap, setSubjectMap] = useState<{ [key: string]: string }>({});
   const [subjectCodeMap, setSubjectCodeMap] = useState<{ [key: string]: string }>({});
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -104,6 +113,16 @@ export default function Grades() {
     subjectId: ""
   });
   const [auditLogs, setAuditLogs] = useState<GradeAuditLog[]>([]);
+  const [isAddGradeFormOpen, setIsAddGradeFormOpen] = useState(false);
+  const [isCreatingGrade, setIsCreatingGrade] = useState(false);
+  const [addGradeError, setAddGradeError] = useState<string | null>(null);
+  const [newGradeForm, setNewGradeForm] = useState<NewGradeForm>({
+    subjectID: "",
+    prelim: "",
+    midterm: "",
+    finals: "",
+    remarks: ""
+  });
 
   // Fetch students
   const fetchStudents = async (page = 1) => {
@@ -179,14 +198,102 @@ export default function Grades() {
     }
   };
 
+  // Fetch subjects by selected student's course
+  const fetchSubjectsByCourseId = async (studentCourseId: string) => {
+    try {
+      const data = await apiCall(`/courses/${studentCourseId}/subjects`, {
+        token: token ?? undefined
+      });
+      setCourseSubjects(data as Subject[]);
+    } catch {
+      setCourseSubjects([]);
+    }
+  };
+
+  const resetNewGradeForm = () => {
+    setNewGradeForm({
+      subjectID: "",
+      prelim: "",
+      midterm: "",
+      finals: "",
+      remarks: ""
+    });
+    setAddGradeError(null);
+  };
+
   // Handle view grades
   const handleViewGrades = async (student: Student) => {
     setSelectedStudent(student);
     setIsGradesModalOpen(true);
+    setIsAddGradeFormOpen(false);
+    resetNewGradeForm();
     await Promise.all([
       fetchGradesForStudent(student.id),
-      fetchAuditLogsForStudent(student.id)
+      fetchAuditLogsForStudent(student.id),
+      fetchSubjectsByCourseId(student.courseId)
     ]);
+  };
+
+  const handleCreateGrade = async () => {
+    if (!selectedStudent) return;
+    if (!user?.id) {
+      setAddGradeError("User session not found. Please log in again.");
+      return;
+    }
+
+    const prelim = Number(newGradeForm.prelim);
+    const midterm = Number(newGradeForm.midterm);
+    const finals = Number(newGradeForm.finals);
+
+    if (!newGradeForm.subjectID) {
+      setAddGradeError("Please select a subject.");
+      return;
+    }
+
+    if (
+      Number.isNaN(prelim) ||
+      Number.isNaN(midterm) ||
+      Number.isNaN(finals) ||
+      prelim < 0 || prelim > 100 ||
+      midterm < 0 || midterm > 100 ||
+      finals < 0 || finals > 100
+    ) {
+      setAddGradeError("Prelim, Midterm, and Finals must be numbers between 0 and 100.");
+      return;
+    }
+
+    try {
+      setIsCreatingGrade(true);
+      setAddGradeError(null);
+
+      const finalGrade = calculateFinalGrade(prelim, midterm, finals);
+      await apiCall("/grades", {
+        method: "POST",
+        body: JSON.stringify({
+          studentID: selectedStudent.id,
+          subjectID: newGradeForm.subjectID,
+          courseID: selectedStudent.courseId,
+          prelim,
+          midterm,
+          finals,
+          finalGrade,
+          remarks: newGradeForm.remarks.trim(),
+          encodedByUserID: user.id
+        }),
+        token: token ?? undefined
+      });
+
+      await Promise.all([
+        fetchGradesForStudent(selectedStudent.id),
+        fetchAuditLogsForStudent(selectedStudent.id)
+      ]);
+      setIsAddGradeFormOpen(false);
+      resetNewGradeForm();
+    } catch (err) {
+      setAddGradeError(err instanceof Error ? err.message : "Failed to add grade");
+    } finally {
+      setIsCreatingGrade(false);
+    }
   };
 
   const handleDeleteGrade = async (gradeId: string) => {
@@ -588,10 +695,14 @@ export default function Grades() {
           setIsGradesModalOpen(false);
           setSelectedStudent(null);
           setGrades([]);
+          setCourseSubjects([]);
           setAuditLogs([]);
           setEditingGradeId(null);
           setEditingRemarks({});
           setEditingGrades({});
+          setIsAddGradeFormOpen(false);
+          setIsCreatingGrade(false);
+          resetNewGradeForm();
           setGradeFilter({ minGrade: "", maxGrade: "", remarks: "", subjectId: "" });
         }}
         title={`Grades for ${selectedStudent?.firstName} ${selectedStudent?.lastName}`}
@@ -605,8 +716,151 @@ export default function Grades() {
             </div>
           </div>
         ) : grades.length === 0 ? (
-          <div className="p-6 text-center text-gray-500">
-            No grades found for this student.
+          <div className="p-6 space-y-4">
+            <div className="text-center text-gray-500">
+              No grades found for this student.
+            </div>
+
+            {!isAddGradeFormOpen ? (
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddGradeFormOpen(true);
+                    setAddGradeError(null);
+                  }}
+                  className="px-4 py-2 bg-indigo-500 text-white rounded-lg text-sm font-medium hover:bg-indigo-600 transition-colors"
+                >
+                  Add Grade
+                </button>
+              </div>
+            ) : (
+              <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-3">
+                <h3 className="text-sm font-semibold text-gray-900">Add Grade</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Subject</label>
+                    <select
+                      value={newGradeForm.subjectID}
+                      onChange={(e) =>
+                        setNewGradeForm((prev) => ({ ...prev, subjectID: e.target.value }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">Select subject</option>
+                      {courseSubjects.map((subject) => (
+                        <option key={subject.id} value={subject.id}>
+                          {subject.code} - {subject.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Prelim</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={newGradeForm.prelim}
+                      onChange={(e) =>
+                        setNewGradeForm((prev) => ({ ...prev, prelim: e.target.value }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Midterm</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={newGradeForm.midterm}
+                      onChange={(e) =>
+                        setNewGradeForm((prev) => ({ ...prev, midterm: e.target.value }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Finals</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={newGradeForm.finals}
+                      onChange={(e) =>
+                        setNewGradeForm((prev) => ({ ...prev, finals: e.target.value }))
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Computed Final Grade</label>
+                    <div className="px-3 py-2 border border-gray-200 rounded text-sm bg-white text-gray-700">
+                      {calculateFinalGrade(
+                        Number(newGradeForm.prelim) || 0,
+                        Number(newGradeForm.midterm) || 0,
+                        Number(newGradeForm.finals) || 0
+                      ).toFixed(2)}
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Remarks</label>
+                    <input
+                      type="text"
+                      value={newGradeForm.remarks}
+                      onChange={(e) =>
+                        setNewGradeForm((prev) => ({ ...prev, remarks: e.target.value }))
+                      }
+                      placeholder="Enter remarks"
+                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                {courseSubjects.length === 0 && (
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                    No subjects are available for this student&apos;s course.
+                  </p>
+                )}
+
+                {addGradeError && (
+                  <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">
+                    {addGradeError}
+                  </p>
+                )}
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddGradeFormOpen(false);
+                      resetNewGradeForm();
+                    }}
+                    disabled={isCreatingGrade}
+                    className="px-3 py-2 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCreateGrade}
+                    disabled={isCreatingGrade || courseSubjects.length === 0}
+                    className="px-3 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {isCreatingGrade ? "Saving..." : "Save Grade"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
