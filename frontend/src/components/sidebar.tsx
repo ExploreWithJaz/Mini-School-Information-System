@@ -6,7 +6,7 @@ import { useState } from "react"
 const NAV_ITEMS = [
   { label: "Student Profile", section: "main" },
   { label: "Enrollment", section: "main" },
-  { label: "Performance", section: "main" },
+  // { label: "Performance", section: "main" },
   { label: "Transcripts", section: "reports" },
   { label: "Attendance", section: "reports" },
 ]

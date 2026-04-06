@@ -126,7 +126,7 @@ async function studentRoutes(
         const gradesQuery = `
           SELECT DISTINCT subject_id as "subjectID"
           FROM grades
-          WHERE student_id = $1 AND subject_id = ANY($2::text[])
+          WHERE student_id = $1 AND subject_id = ANY($2::uuid[])
         `;
         const gradesResult = await (pool as any).query(gradesQuery, [id, prereqIds]);
         const satisfiedPrereqIds = gradesResult.rows.map((g: any) => g.subjectID);
@@ -141,7 +141,7 @@ async function studentRoutes(
           const missingQuery = `
             SELECT id, code, title
             FROM subjects
-            WHERE id = ANY($1::text[])
+            WHERE id = ANY($1::uuid[])
           `;
           const missingResult = await (pool as any).query(missingQuery, [missingPrereqIds]);
           
