@@ -84,6 +84,9 @@ export default function Subjects() {
     const [isAddingPrerequisite, setIsAddingPrerequisite] = useState(false)
     const [prerequisiteError, setPrerequisiteError] = useState<string | null>(null)
     const [allPrerequisites, setAllPrerequisites] = useState<Prerequisite[]>([])
+    const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<string>>(new Set())
+    const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+    const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
     useEffect(() => {
         const fetchData = async () => {
@@ -439,6 +442,49 @@ export default function Subjects() {
         return allPrerequisites.filter(p => p.prerequisiteSubjectID === subjectId).length
     }
 
+        const handleSelectAllSubjects = (checked: boolean) => {
+      if (checked) {
+        setSelectedSubjectIds(new Set(filteredSubjects.map(s => s.id)))
+      } else {
+        setSelectedSubjectIds(new Set())
+      }
+    }
+
+    const handleSelectSubject = (id: string, checked: boolean) => {
+      const newSelected = new Set(selectedSubjectIds)
+      if (checked) {
+        newSelected.add(id)
+      } else {
+        newSelected.delete(id)
+      }
+      setSelectedSubjectIds(newSelected)
+    }
+
+    const handleBulkDeleteSubjects = async () => {
+      if (selectedSubjectIds.size === 0) return
+
+      try {
+        setIsBulkDeleting(true)
+        setError(null)
+
+        const deletePromises = Array.from(selectedSubjectIds).map(id =>
+          apiCall(`/subjects/${id}`, { method: 'DELETE' })
+        )
+
+        await Promise.all(deletePromises)
+
+        setSubjects((prev) =>
+          prev.filter((subject) => !selectedSubjectIds.has(subject.id))
+        )
+        setSelectedSubjectIds(new Set())
+        setBulkDeleteOpen(false)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to bulk delete subjects')
+      } finally {
+        setIsBulkDeleting(false)
+      }
+    }
+
     return (
         <main className='min-h-screen bg-slate-50 p-6 md:p-8'>
             <div className='mx-auto space-y-6'>
@@ -449,13 +495,33 @@ export default function Subjects() {
                             Browse all subjects and filter them by course.
                         </p>
                     </div>
-                    <button
-                        type='button'
-                        onClick={openAddModal}
-                        className='inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800'
-                    >
-                        + Add Subject
-                    </button>
+                    <div className='flex gap-2'>
+                        {selectedSubjectIds.size > 0 && (
+                            <>
+                                <button
+                                    type='button'
+                                    onClick={() => setBulkDeleteOpen(true)}
+                                    className='inline-flex items-center justify-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700'
+                                >
+                                    Delete ({selectedSubjectIds.size})
+                                </button>
+                                <button
+                                    type='button'
+                                    onClick={() => setSelectedSubjectIds(new Set())}
+                                    className='inline-flex items-center justify-center rounded-lg bg-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-400'
+                                >
+                                    Clear
+                                </button>
+                            </>
+                        )}
+                        <button
+                            type='button'
+                            onClick={openAddModal}
+                            className='inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800'
+                        >
+                            + Add Subject
+                        </button>
+                    </div>
                 </header>
                 <section className='rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200 md:p-6'>
                     <div className='grid grid-cols-1 gap-3 md:grid-cols-3'>
@@ -502,92 +568,71 @@ export default function Subjects() {
                             <table className='min-w-full divide-y divide-slate-200'>
                                 <thead className='bg-slate-50'>
                                     <tr>
-                                        <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500'>
-                                            Code
+                                        <th className='px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500'>
+                                            <input
+                                                type='checkbox'
+                                                checked={selectedSubjectIds.size === filteredSubjects.length && filteredSubjects.length > 0}
+                                                onChange={(e) => handleSelectAllSubjects(e.target.checked)}
+                                                className='w-4 h-4 cursor-pointer'
+                                            />
                                         </th>
-                                        <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500'>
-                                            Title
-                                        </th>
-                                        <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500'>
-                                            Course
-                                        </th>
-                                        <th className='px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500'>
-                                            Units
-                                        </th>
-                                        <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500'>
-                                            Updated
-                                        </th>
-                                        <th className='px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500'>
-                                            Prerequisites
-                                        </th>
-                                        <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500'>
-                                            Actions
-                                        </th>
+                                        <th className='px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500'>Code</th>
+                                        <th className='px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500'>Title</th>
+                                        <th className='px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500'>Course</th>
+                                        <th className='px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500'>Units</th>
+                                        <th className='px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500'>Prerequisites</th>
+                                        <th className='px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500'>Dependents</th>
+                                        <th className='px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500'>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className='divide-y divide-slate-100 bg-white'>
                                     {filteredSubjects.map((subject) => (
                                         <tr key={subject.id} className='hover:bg-slate-50'>
-                                            <td className='px-4 py-3 text-sm font-semibold text-slate-800'>{subject.code}</td>
-                                            <td className='px-4 py-3 text-sm text-slate-700'>{subject.title}</td>
-                                            <td className='px-4 py-3 text-sm text-slate-600'>{getCourseLabel(subject.courseID)}</td>
-                                            <td className='px-4 py-3 text-center text-sm text-slate-700'>{subject.units}</td>
-                                            <td className='px-4 py-3 text-sm text-slate-600'>{formatDate(subject.updatedAt)}</td>
-                                            <td className='px-4 py-3 text-center'>
-                                                <div className='flex flex-col items-center justify-center gap-2'>
-                                                    {getPrerequisiteSubjects(subject.id).length > 0 && (
-                                                        <div className='flex flex-wrap gap-1 justify-center'>
-                                                            {getPrerequisiteSubjects(subject.id).map((prereqSubject) => (
-                                                                <span
-                                                                    key={prereqSubject?.id}
-                                                                    className='inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800'
-                                                                    title={`Requires: ${prereqSubject?.title}`}
-                                                                >
-                                                                    {prereqSubject?.code}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                    {getDependentSubjects(subject.id).length > 0 && (
-                                                        <div className='flex flex-wrap gap-1 justify-center'>
-                                                            {getDependentSubjects(subject.id).map((depSubject) => (
-                                                                <span
-                                                                    key={depSubject?.id}
-                                                                    className='inline-flex items-center rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800'
-                                                                    title={`Required by: ${depSubject?.title}`}
-                                                                >
-                                                                    {depSubject?.code}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                    {getPrerequisiteSubjects(subject.id).length === 0 && getDependentSubjects(subject.id).length === 0 && (
-                                                        <span className='text-xs text-slate-400'>No Prerequisite</span>
-                                                    )}
-                                                </div>
+                                            <td className='px-6 py-4 whitespace-nowrap'>
+                                                <input
+                                                    type='checkbox'
+                                                    checked={selectedSubjectIds.has(subject.id)}
+                                                    onChange={(e) => handleSelectSubject(subject.id, e.target.checked)}
+                                                    className='w-4 h-4 cursor-pointer'
+                                                />
                                             </td>
-                                            <td className='px-4 py-3 text-sm text-slate-600 flex flex-row gap-2'>
+                                            <td className='px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900'>
+                                                {subject.code}
+                                            </td>
+                                            <td className='px-6 py-4 whitespace-nowrap text-sm text-slate-600'>
+                                                {subject.title}
+                                            </td>
+                                            <td className='px-6 py-4 whitespace-nowrap text-sm text-slate-600'>
+                                                {getCourseLabel(subject.courseID)}
+                                            </td>
+                                            <td className='px-6 py-4 whitespace-nowrap text-sm text-slate-600'>
+                                                {subject.units}
+                                            </td>
+                                            <td className='px-6 py-4 whitespace-nowrap text-sm'>
+                                                <span className='inline-block rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700'>
+                                                    {getPrerequisiteCount(subject.id)}
+                                                </span>
+                                            </td>
+                                            <td className='px-6 py-4 whitespace-nowrap text-sm'>
+                                                <span className='inline-block rounded-full bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700'>
+                                                    {getDependentCount(subject.id)}
+                                                </span>
+                                            </td>
+                                            <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
                                                 <button
                                                     type='button'
                                                     onClick={() => openEditModal(subject)}
-                                                    className='bg-blue-300 p-0.5 rounded-sm cursor-pointer'
+                                                    className='text-indigo-600 hover:text-indigo-800 mr-4'
                                                 >
-                                                    <svg xmlns='http://www.w3.org/2000/svg' height='20px' viewBox='0 -960 960 960' width='20px' fill='#2854C5'>
-                                                        <path d='M216-216h51l375-375-51-51-375 375v51Zm-72 72v-153l498-498q11-11 23.84-16 12.83-5 27-5 14.16 0 27.16 5t24 16l51 51q11 11 16 24t5 26.54q0 14.45-5.02 27.54T795-642L297-144H144Zm600-549-51-51 51 51Zm-127.95 76.95L591-642l51 51-25.95-25.05Z' />
-                                                    </svg>
+                                                    Edit
                                                 </button>
-
                                                 <button
                                                     type='button'
                                                     onClick={() => openDeleteModal(subject)}
-                                                    className='bg-red-300 p-0.5 rounded-sm cursor-pointer'
+                                                    className='text-red-600 hover:text-red-800'
                                                 >
-                                                    <svg xmlns='http://www.w3.org/2000/svg' height='20px' viewBox='0 -960 960 960' width='20px' fill='#8C1A10'>
-                                                        <path d='M312-144q-29.7 0-50.85-21.15Q240-186.3 240-216v-480h-48v-72h192v-48h192v48h192v72h-48v479.57Q720-186 698.85-165T648-144H312Zm336-552H312v480h336v-480ZM384-288h72v-336h-72v336Zm120 0h72v-336h-72v336ZM312-696v480-480Z' />
-                                                    </svg>
+                                                    Delete
                                                 </button>
-
-
                                             </td>
                                         </tr>
                                     ))}
@@ -865,7 +910,41 @@ export default function Subjects() {
                     ? This action cannot be undone.
                 </p>
             </Modal>
-
+            <Modal
+                isOpen={bulkDeleteOpen}
+                onClose={() => {
+                    if (isBulkDeleting) return
+                    setBulkDeleteOpen(false)
+                }}
+                title='Bulk Delete Subjects'
+                size='sm'
+                footer={
+                    <div className='flex items-center justify-end gap-2'>
+                        <button
+                            type='button'
+                            onClick={() => {
+                                if (isBulkDeleting) return
+                                setBulkDeleteOpen(false)
+                            }}
+                            className='rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50'
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type='button'
+                            onClick={handleBulkDeleteSubjects}
+                            disabled={isBulkDeleting}
+                            className='rounded-lg bg-rose-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60'
+                        >
+                            {isBulkDeleting ? 'Deleting...' : 'Delete All'}
+                        </button>
+                    </div>
+                }
+            >
+                <p className='text-sm text-slate-600'>
+                    Are you sure you want to delete <span className='font-semibold'>{selectedSubjectIds.size} subject(s)</span>? This action cannot be undone.
+                </p>
+            </Modal>
         </main>
     )
 }
