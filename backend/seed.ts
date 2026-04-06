@@ -1,4 +1,5 @@
 import pool from './db/connection';
+import { Pool } from 'pg';
 import { createUser } from './service/usersService';
 import { createCourse } from './service/courseService';
 import { createSubject } from './service/subjectsService';
@@ -12,9 +13,102 @@ const ADMIN_CREDENTIALS = {
   role: 'admin'
 };
 
+async function initializeDatabase() {
+  try {
+    console.log('Initializing database tables...');
+    
+    // Create all tables with proper constraints
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        role VARCHAR(50) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS courses (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        code VARCHAR(50) UNIQUE NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS subjects (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+        code VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        units INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(course_id, code),
+        UNIQUE(course_id, title)
+      );
+
+      CREATE TABLE IF NOT EXISTS students (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_number VARCHAR(50) UNIQUE NOT NULL,
+        first_name VARCHAR(255) NOT NULL,
+        last_name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        birth_date DATE,
+        course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS grades (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+        course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+        prelim DECIMAL(3,2) NOT NULL,
+        midterm DECIMAL(3,2) NOT NULL,
+        finals DECIMAL(3,2) NOT NULL,
+        final_grade DECIMAL(3,2) NOT NULL,
+        remarks VARCHAR(50) NOT NULL,
+        encoded_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(student_id, subject_id, course_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS subject_prerequisites (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+        prerequisite_subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(subject_id, prerequisite_subject_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS subject_reservations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+        subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+        status VARCHAR(20) NOT NULL CHECK (status IN ('reserved', 'cancelled')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(student_id, subject_id)
+      );
+    `);
+    
+    console.log('✓ Database tables initialized\n');
+  } catch (error) {
+    console.error('Error initializing database:', error);
+    throw error;
+  }
+}
+
 async function seed() {
   try {
     console.log('Starting seed data...');
+    
+    // Initialize database tables first
+    await initializeDatabase();
 
     // 1. CREATE ADMIN USER
     console.log('\n1. Creating admin user...');
