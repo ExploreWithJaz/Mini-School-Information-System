@@ -100,7 +100,7 @@ const AdminSidebar = ({
             {user?.email?.[0]?.toUpperCase() || 'A'}
           </div>
           <div>
-            <p className="text-xs font-medium text-gray-800">{user?.email || 'Admin'}</p>
+            <p className="text-xs font-medium text-gray-800 truncate max-w-30">{user?.email || 'Admin'}</p>
             <p className="text-[11px] text-gray-400">{user?.role || 'Admin'}</p>
           </div>
         </div>

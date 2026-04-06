@@ -89,8 +89,8 @@ const Sidebar = ({ activePage, setActivePage }: { activePage: string; setActiveP
           <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
             {user?.email?.[0]?.toUpperCase() || 'U'}
           </div>
-          <div>
-            <p className="text-xs font-medium text-gray-800">{user?.email || 'User'}</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-gray-800 truncate" title={user?.email || 'User'}>{user?.email || 'User'}</p>
             <p className="text-[11px] text-gray-400">{user?.role || 'Student'}</p>
           </div>
         </div>
