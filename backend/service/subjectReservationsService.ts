@@ -60,7 +60,18 @@ export async function createReservation(data: InputSubjectReservations): Promise
     const allPrerequisitesMet = prerequisiteIds.every(id => completedPrerequisites.has(id));
     
     if (!allPrerequisitesMet) {
-      throw new Error('Student has not satisfied all prerequisite requirements');
+      // Get codes of missing prerequisites to provide detailed error message
+      const missingPrereqIds = prerequisiteIds.filter(
+        (prereqId: string) => !completedPrerequisites.has(prereqId)
+      );
+      
+      const codesQuery = `
+        SELECT code FROM subjects WHERE id = ANY($1::uuid[]) ORDER BY code
+      `;
+      const codesResult = await pool.query(codesQuery, [missingPrereqIds]);
+      const missingCodes = codesResult.rows.map(row => row.code);
+      
+      throw new Error(`Missing prerequisites: [${missingCodes.join(', ')}]`);
     }
   }
 

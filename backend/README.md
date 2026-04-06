@@ -118,43 +118,66 @@ npm run dev
 
 ## 📋 Key Assumptions & Validation Rules
 
-### Prerequisites: "Taken/Passed" Rule
-A student has satisfied a prerequisite when:
-- A grade record exists for the prerequisite subject
-- **AND** (`final_grade >= 75.0` OR `remarks = 'PASSED'`)
+This system implements the following business rules for prerequisite validation and grading:
 
-### Passing Grade Threshold
-```
-Final Grade Calculation: (Prelim × 0.2) + (Midterm × 0.3) + (Finals × 0.5)
-Passing Threshold: 75.0
-Remarks: Automatically set to 'PASSED' if final_grade >= 75.0, else 'FAILED'
-```
+### Prerequisite "Taken/Passed" Definition
 
-### Reservation Behavior - Missing Prerequisites
-When a student attempts to reserve a subject with unmet prerequisites:
+A prerequisite is considered **satisfied** if:
+- The student has a **grade record** for that prerequisite subject in the `grades` table
+- The system assumes any grade record means the prerequisite was taken/passed
+- There is **no passing grade threshold check** for prerequisites - existence of a grade satisfies the prerequisite
 
-**Error Response** (HTTP 400):
-```json
-{
-  "statusCode": 400,
-  "message": "Cannot reserve subject. Missing prerequisites: [CS101, CS102]",
-  "missingPrerequisites": ["CS101", "CS102"]
-}
-```
+**Rationale:** This follows **Option A** from the exam specification, keeping prerequisite tracking simple while maintaining data integrity through the grading system.
 
-The reservation is **rejected** and the student must complete the prerequisite subjects first (verified by grade records meeting the passing threshold).
+### Grading Scale
 
-### CSV Import Validation
-- Required columns: `student_number, first_name, last_name, email, birth_date, course_id`
-- Valid email format required
-- Valid date format: YYYY-MM-DD
-- Course must exist in database
-- No duplicate student numbers allowed
+The system uses the following grading scale:
+- **1.00 - 3.00**: Passing grades (highest to lowest passing)
+- **5.00**: Failed grades
+- **Remarks field**: `PASSED` or `FAILED` (automatically set based on grade)
 
-### Prerequisite Integrity
-- No self-references (subject ≠ prerequisite)
-- No circular chains (A→B→C→A prevented)
-- Prerequisites must be same course as target subject
+Grades are calculated as the average of prelim, midterm, and finals exam scores.
+
+### Subject Reservation Validation
+
+When a student attempts to reserve a subject, the system validates:
+
+1. **Course Scoping**: `student.course_id == subject.course_id`
+   - Students can only reserve subjects within their enrolled course
+
+2. **Prerequisite Enforcement**: All prerequisites must be satisfied
+   - If prerequisites are missing, the system returns:
+     ```
+     400 Bad Request: Missing prerequisites: [SUBJ101, SUBJ102]
+     ```
+   - Where codes are subject codes of unsatisfied prerequisites
+   - Prerequisites are sorted alphabetically for consistency
+
+3. **No Duplicate Reservations**: Student cannot have two active reservations for the same subject
+
+4. **No Reserved-After-Completion**: Student cannot reserve a subject they already have a grade for
+
+### CSV Student Import
+
+The import feature accepts CSV files with the following required headers:
+- `student_number` - Unique student identifier
+- `first_name` - First name
+- `last_name` - Last name
+- `email` - Email address (must be valid format)
+- `birth_date` - Birth date (YYYY-MM-DD format)
+- `course_id` - UUID of the course to assign student to
+
+Invalid rows are skipped, and a summary is returned with success/failure counts and specific error messages for each failed row.
+
+### Audit Logging
+
+Grade modifications are logged automatically:
+- **Tracked fields:** Any field that changes (prelim, midterm, finals, final_grade, remarks)
+- **Who modified**: User ID and email of the person making the change
+- **When modified**: Timestamp of each modification
+- **Old/New values**: Previous and new values for comparison
+
+Accessible via: `GET /students/:studentID/grade-audit-logs`
 
 ---
 
