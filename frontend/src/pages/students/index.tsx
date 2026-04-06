@@ -75,6 +75,9 @@ export default function Students() {
   const [isImporting, setIsImporting] = useState(false)
   const [importResults, setImportResults] = useState<any>(null)
   const [showImportResults, setShowImportResults] = useState(false)
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set())
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
   const fetchStudents = async (page = 1) => {
     try {
@@ -242,6 +245,49 @@ export default function Students() {
       setIsDeleting(false)
     }
   }
+  
+  const handleSelectAllStudents = (checked: boolean) => {
+    if (checked) {
+      setSelectedStudentIds(new Set(students.map(s => s.id)))
+    } else {
+      setSelectedStudentIds(new Set())
+    }
+  }
+
+  const handleSelectStudent = (id: string, checked: boolean) => {
+    const newSelected = new Set(selectedStudentIds)
+    if (checked) {
+      newSelected.add(id)
+    } else {
+      newSelected.delete(id)
+    }
+    setSelectedStudentIds(newSelected)
+  }
+
+  const handleBulkDeleteStudents = async () => {
+    if (selectedStudentIds.size === 0) return
+
+    try {
+      setIsBulkDeleting(true)
+      setError(null)
+
+      const deletePromises = Array.from(selectedStudentIds).map(id =>
+        apiCall(`/students/${id}`, { method: 'DELETE' })
+      )
+
+      await Promise.all(deletePromises)
+
+      setStudents((prev) =>
+        prev.filter((student) => !selectedStudentIds.has(student.id))
+      )
+      setSelectedStudentIds(new Set())
+      setBulkDeleteOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to bulk delete students')
+    } finally {
+      setIsBulkDeleting(false)
+    }
+  }
 
   const handleImportCSV = async () => {
     if (!importFile) {
@@ -335,6 +381,24 @@ STU003,Bob,Johnson,bob.johnson@example.com,2000-03-10,COURSE_ID_HERE`
         <div className='flex flex-col'>
           <label className='block text-sm font-medium text-gray-700 mb-2'>Actions</label>
           <div className='flex gap-2'>
+            {selectedStudentIds.size > 0 && (
+              <>
+                <button
+                  type='button'
+                  onClick={() => setBulkDeleteOpen(true)}
+                  className='px-4 py-2.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors cursor-pointer'
+                >
+                  Delete ({selectedStudentIds.size})
+                </button>
+                <button
+                  type='button'
+                  onClick={() => setSelectedStudentIds(new Set())}
+                  className='px-4 py-2.5 bg-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-400 transition-colors cursor-pointer'
+                >
+                  Clear Selection
+                </button>
+              </>
+            )}
             <button
               type='button'
               onClick={() => setIsImportOpen(true)}
@@ -379,6 +443,14 @@ STU003,Bob,Johnson,bob.johnson@example.com,2000-03-10,COURSE_ID_HERE`
               <table className='w-full border-collapse'>
                 <thead>
                   <tr className='bg-gray-50 border-b border-gray-100'>
+                    <th className='text-center text-[10px] font-medium uppercase tracking-widest text-gray-400 px-4 py-3 w-12'>
+                      <input
+                        type='checkbox'
+                        checked={selectedStudentIds.size === students.length && students.length > 0}
+                        onChange={(e) => handleSelectAllStudents(e.target.checked)}
+                        className='w-4 h-4 cursor-pointer'
+                      />
+                    </th>
                     <th className='text-left text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3'>Student Number</th>
                     <th className='text-left text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3'>Full Name</th>
                     <th className='text-left text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3'>Email</th>
@@ -390,6 +462,14 @@ STU003,Bob,Johnson,bob.johnson@example.com,2000-03-10,COURSE_ID_HERE`
                 <tbody>
                   {students.map((student) => (
                     <tr key={student.id} className='border-b border-gray-50 hover:bg-gray-50 transition-colors'>
+                      <td className='text-center px-4 py-4'>
+                        <input
+                          type='checkbox'
+                          checked={selectedStudentIds.has(student.id)}
+                          onChange={(e) => handleSelectStudent(student.id, e.target.checked)}
+                          className='w-4 h-4 cursor-pointer'
+                        />
+                      </td>
                       <td className='px-6 py-4 text-xs font-medium text-gray-700'>
                         {student.studentNumber}
                       </td>
@@ -731,6 +811,41 @@ STU003,Bob,Johnson,bob.johnson@example.com,2000-03-10,COURSE_ID_HERE`
             )}
           </div>
         )}
+      </Modal>
+            <Modal
+        isOpen={bulkDeleteOpen}
+        onClose={() => {
+          if (isBulkDeleting) return
+          setBulkDeleteOpen(false)
+        }}
+        title='Bulk Delete Students'
+        size='sm'
+        footer={
+          <div className='flex items-center justify-end gap-2'>
+            <button
+              type='button'
+              onClick={() => {
+                if (isBulkDeleting) return
+                setBulkDeleteOpen(false)
+              }}
+              className='rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50'
+            >
+              Cancel
+            </button>
+            <button
+              type='button'
+              onClick={handleBulkDeleteStudents}
+              disabled={isBulkDeleting}
+              className='rounded-lg bg-rose-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60'
+            >
+              {isBulkDeleting ? 'Deleting...' : 'Delete All'}
+            </button>
+          </div>
+        }
+      >
+        <p className='text-sm text-slate-600'>
+          Are you sure you want to delete <span className='font-semibold'>{selectedStudentIds.size} student(s)</span>? This action cannot be undone.
+        </p>
       </Modal>
     </section>
   )
