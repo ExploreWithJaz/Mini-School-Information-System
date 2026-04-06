@@ -117,8 +117,7 @@ async function initializeDatabase() {
         student_id UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE,
         subject_id UUID NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
         status VARCHAR(20) NOT NULL CHECK (status IN ('reserved', 'cancelled')),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        reserved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(student_id, subject_id)
       );
     `);
