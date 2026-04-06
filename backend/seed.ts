@@ -189,6 +189,7 @@ async function seed() {
           // Calculate final grade as average rounded to nearest 0.25
           const average = (prelim + midterm + finals) / 3;
           const finalGrade = Math.round(average * 4) / 4;
+          const remarks = finalGrade <= 3.0 ? 'Passed' : 'Failed';
           
           await createGrade({
             studentID: student.id,
@@ -198,7 +199,7 @@ async function seed() {
             midterm,
             finals,
             finalGrade,
-            remarks: '', // Empty remarks as user will fill this later
+            remarks,
             encodedByUserID: admin.id
           });
           gradeCount++;

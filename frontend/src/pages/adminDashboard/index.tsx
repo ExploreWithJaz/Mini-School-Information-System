@@ -73,6 +73,7 @@ type GradeRow = {
   subjectTitle: string
   finalGrade: number
   remarks: string
+  status: 'passed' | 'failed' | 'unknown'
   updatedAt: string
 }
 
@@ -120,6 +121,19 @@ const formatDateTime = (value: string) => {
 
 const getInitials = (firstName: string, lastName: string) => {
   return `${firstName?.[0] ?? ''}${lastName?.[0] ?? ''}`.toUpperCase() || 'A'
+}
+
+const getGradeStatus = (grade: GradeApi): 'passed' | 'failed' | 'unknown' => {
+  const remarks = String(grade.remarks ?? '').trim().toUpperCase()
+  if (remarks === 'PASSED') return 'passed'
+  if (remarks === 'FAILED') return 'failed'
+
+  const rawFinalGrade = grade.finalGrade
+  const finalGrade = typeof rawFinalGrade === 'number' ? rawFinalGrade : Number(rawFinalGrade)
+
+  if (!Number.isFinite(finalGrade)) return 'unknown'
+
+  return finalGrade >= 75 ? 'passed' : 'failed'
 }
 
 const metricCards = [
@@ -210,6 +224,7 @@ export default function AdminDashboard() {
         const gradeRows: GradeRow[] = grades.slice(0, 5).map((grade) => {
           const student = studentMap.get(grade.studentID)
           const subject = subjectMap.get(grade.subjectID)
+          const status = getGradeStatus(grade)
 
           return {
             id: grade.id,
@@ -219,21 +234,13 @@ export default function AdminDashboard() {
             subjectTitle: subject?.title ?? 'Unknown subject',
             finalGrade: Number(grade.finalGrade ?? 0),
             remarks: grade.remarks ?? 'N/A',
+            status,
             updatedAt: grade.updatedAt ?? ''
           }
         })
 
-        const passedGrades = grades.filter((grade) => {
-          const remarks = String(grade.remarks ?? '').toUpperCase()
-          const finalGrade = Number(grade.finalGrade ?? 0)
-          return remarks === 'PASSED' || finalGrade >= 75
-        }).length
-
-        const failedGrades = grades.filter((grade) => {
-          const remarks = String(grade.remarks ?? '').toUpperCase()
-          const finalGrade = Number(grade.finalGrade ?? 0)
-          return remarks === 'FAILED' || finalGrade < 75
-        }).length
+        const passedGrades = grades.filter((grade) => getGradeStatus(grade) === 'passed').length
+        const failedGrades = grades.filter((grade) => getGradeStatus(grade) === 'failed').length
 
         setSummary({
           students: studentsPayload.pagination?.total ?? students.length,
@@ -553,7 +560,7 @@ export default function AdminDashboard() {
                       </td>
                       <td className='px-4 py-4 text-center text-sm font-semibold text-slate-900'>{grade.finalGrade.toFixed(1)}</td>
                       <td className='px-4 py-4 text-center'>
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${grade.remarks.toUpperCase() === 'PASSED' || grade.finalGrade >= 75 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${grade.status === 'passed' ? 'bg-emerald-50 text-emerald-700' : grade.status === 'failed' ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-600'}`}>
                           {grade.remarks}
                         </span>
                       </td>

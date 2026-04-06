@@ -66,7 +66,7 @@ export default function Enrollment() {
 
   // Admin selection
   const { hasAccess } = useRouteProtection({ 
-    requiredRoles: ['Faculty', 'Admin'] 
+    requiredRoles: ['Faculty', 'Admin', 'Student'] 
   })
   const [allStudents, setAllStudents] = useState<StudentInfo[]>([])
   const [allCourses, setAllCourses] = useState<Course[]>([])
