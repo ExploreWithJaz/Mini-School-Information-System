@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { apiCall } from '@/lib/api'
 import { useRouter } from 'next/navigation'
 import Modal from '@/components/modal'
+import { useRouteProtection } from '@/hooks/useRouteProtection'
 
 interface Student {
   id: string
@@ -44,6 +45,9 @@ type StudentForm = {
 }
 
 export default function Students() {
+  const { hasAccess } = useRouteProtection({ 
+    requiredRoles: ['Faculty', 'Admin'] 
+  })
   const router = useRouter()
   const [students, setStudents] = useState<Student[]>([])
   const [pagination, setPagination] = useState({
@@ -127,11 +131,15 @@ export default function Students() {
   }
 
   useEffect(() => {
+    if (!hasAccess) {
+      setLoading(false)
+      return
+    }
     const timer = setTimeout(() => {
       fetchStudents(1)
     }, 300)
     return () => clearTimeout(timer)
-  }, [search, courseId])
+  }, [search, courseId, hasAccess])
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value)

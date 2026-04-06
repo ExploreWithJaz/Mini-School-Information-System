@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiCall } from '@/lib/api'
 import Modal from '@/components/modal'
+import { useRouteProtection } from '@/hooks/useRouteProtection'
 
 type SubjectApi = {
     id: string
@@ -63,6 +64,9 @@ type PrerequisiteApi = {
 }
 
 export default function Subjects() {
+    const { hasAccess } = useRouteProtection({ 
+        requiredRoles: ['Faculty', 'Admin'] 
+    })
     const [subjects, setSubjects] = useState<Subject[]>([])
     const [courses, setCourses] = useState<CourseOption[]>([])
     const [query, setQuery] = useState('')
@@ -93,6 +97,10 @@ export default function Subjects() {
     const [isSavingInline, setIsSavingInline] = useState(false)
 
     useEffect(() => {
+        if (!hasAccess) {
+            setLoading(false)
+            return
+        }
         const fetchData = async () => {
             try {
                 setLoading(true)
@@ -137,7 +145,7 @@ export default function Subjects() {
         }
 
         fetchData()
-    }, [])
+    }, [hasAccess])
 
     const openAddModal = () => {
         setAddForm({ code: '', title: '', units: 0, courseID: '' })

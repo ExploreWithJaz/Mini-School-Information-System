@@ -3,6 +3,7 @@ import { useAuth } from '@/context/authContext'
 import { useEffect, useState } from 'react'
 import { apiCall } from '@/lib/api'
 import Modal from '@/components/modal'
+import { useRouteProtection } from '@/hooks/useRouteProtection'
 
 interface StudentInfo {
   id: string
@@ -64,6 +65,9 @@ export default function Enrollment() {
   const isAdmin = user?.role === 'Admin'
 
   // Admin selection
+  const { hasAccess } = useRouteProtection({ 
+    requiredRoles: ['Faculty', 'Admin'] 
+  })
   const [allStudents, setAllStudents] = useState<StudentInfo[]>([])
   const [allCourses, setAllCourses] = useState<Course[]>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string>('')
@@ -97,6 +101,10 @@ export default function Enrollment() {
 
   // Fetch base data
   useEffect(() => {
+    if (!hasAccess) {
+      setLoading(false)
+      return
+    }
     const fetchBaseData = async () => {
       try {
         setLoading(true)
@@ -187,7 +195,7 @@ export default function Enrollment() {
     }
 
     fetchBaseData()
-  }, [isAdmin])
+  }, [isAdmin, hasAccess])
 
   // Fetch student-specific data
   useEffect(() => {

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/authContext";
 import { apiCall } from "@/lib/api";
 import Modal from "@/components/modal";
+import { useRouteProtection } from "@/hooks/useRouteProtection";
 
 interface Student {
   id: string;
@@ -80,6 +81,7 @@ interface NewGradeForm {
 
 export default function Grades() {
   const { user, token, loading: authLoading } = useAuth();
+  const { hasAccess } = useRouteProtection({})
   const [students, setStudents] = useState<Student[]>([]);
   const [grades, setGrades] = useState<Grade[]>([]);
   const [pagination, setPagination] = useState({
@@ -394,13 +396,18 @@ export default function Grades() {
 
   // Load initial data
   useEffect(() => {
+    if (!hasAccess) {
+      setLoading(false)
+      return
+    }
+
     if (!authLoading && user && token) {
       fetchStudents(1);
       fetchCourses();
       fetchSubjects();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user, token]);
+  }, [authLoading, user, token, hasAccess]);
 
   // Fetch courses
   const fetchCourses = async () => {

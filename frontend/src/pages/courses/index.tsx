@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiCall } from '@/lib/api'
 import Modal from '@/components/modal'
+import { useRouteProtection } from '@/hooks/useRouteProtection'
 
 type CourseApi = {
   id: string
@@ -22,6 +23,9 @@ type Course = {
 }
 
 export default function Courses() {
+  const { hasAccess } = useRouteProtection({ 
+    requiredRoles: ['Faculty', 'Admin'] 
+  })
   const [courses, setCourses] = useState<Course[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
@@ -44,6 +48,11 @@ export default function Courses() {
   const [isSavingInline, setIsSavingInline] = useState(false)
 
   useEffect(() => {
+    if (!hasAccess) {
+      setLoading(false)
+      return
+    }
+
     const fetchCourses = async () => {
       try {
         setLoading(true)
@@ -70,7 +79,7 @@ export default function Courses() {
     }
 
     fetchCourses()
-  }, [])
+  }, [hasAccess])
 
   const filteredCourses = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -84,6 +93,9 @@ export default function Courses() {
       )
     })
   }, [courses, query])
+
+  if (!hasAccess) return null
+  if (loading) return <div className='flex items-center justify-center min-h-screen'>Loading...</div>
 
   const formatDate = (value: string) => {
     const d = new Date(value)

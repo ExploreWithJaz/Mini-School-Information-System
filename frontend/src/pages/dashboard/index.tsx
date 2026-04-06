@@ -1,10 +1,15 @@
 'use client'
 import { useState } from 'react'
+import { useRouteProtection } from '@/hooks/useRouteProtection'
 
 const TABS = ['Overview', 'Grades', 'Prerequisites']
 
 export default function Dashboard() {
+  const { hasAccess, loading } = useRouteProtection({})
   const [activeTab, setActiveTab] = useState('Overview')
+
+  if (loading) return <div className='flex items-center justify-center min-h-screen'>Loading...</div>
+  if (!hasAccess) return null
 
   return (
     <section className='bg-[#f5f6fb] min-h-screen p-5'>

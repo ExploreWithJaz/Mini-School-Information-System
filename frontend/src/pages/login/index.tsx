@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/context/authContext'
 import { useRouter } from 'next/router'
 
@@ -19,28 +19,39 @@ const ROLE_PLACEHOLDERS: Record<Role, string> = {
 }
 
 export default function LoginPage() {
+  const { isAuthenticated, loading } = useAuth()
+  const router = useRouter()
   const [role, setRole] = useState<Role>('Student')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [formLoading, setFormLoading] = useState(false)
 
   const { login } = useAuth()
-  const router = useRouter()
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      router.push('/')
+    }
+  }, [isAuthenticated, loading, router])
+
+  if (loading) return <div>Loading...</div>
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    setLoading(true)
+    setFormLoading(true)
 
     try {
       await login(email, password)
-      // Redirect to dashboard on successful login
+      // Redirect to home on successful login
       router.push('/')
-    } catch (err: any) {
-      setError(err.message || 'Login failed. Please try again.')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Login failed. Please try again.'
+      setError(message)
     } finally {
-      setLoading(false)
+      setFormLoading(false)
     }
   }
 
@@ -94,10 +105,10 @@ export default function LoginPage() {
 
           <button
             type='submit'
-            disabled={loading}
+            disabled={formLoading}
             className='w-full py-2.5 rounded-lg bg-[#1a1f36] hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium transition-colors mt-1'
           >
-            {loading ? 'Signing in...' : 'Sign in'}
+            {formLoading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
 

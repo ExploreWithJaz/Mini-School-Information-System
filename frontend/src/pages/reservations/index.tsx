@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { apiCall } from '@/lib/api'
 import Modal from '@/components/modal'
+import { useRouteProtection } from '@/hooks/useRouteProtection'
 
 interface Reservation {
   id: string
@@ -36,6 +37,7 @@ interface ReservationDetail extends Reservation {
 }
 
 export default function Reservations() {
+  const { hasAccess } = useRouteProtection({})
   const [reservations, setReservations] = useState<ReservationDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -127,8 +129,12 @@ export default function Reservations() {
   }
 
   useEffect(() => {
+    if (!hasAccess) {
+      setLoading(false)
+      return
+    }
     fetchReservations()
-  }, [])
+  }, [hasAccess])
 
   // Filter reservations based on search and status
   const filteredReservations = reservations.filter((res) => {
