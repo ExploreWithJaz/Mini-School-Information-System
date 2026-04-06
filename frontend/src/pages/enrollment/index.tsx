@@ -218,7 +218,7 @@ export default function Enrollment() {
         let currentStudent: StudentInfo | undefined
 
         if (isAdmin && selectedStudentId) {
-          currentStudent = allStudents.find((s) => s.id === selectedStudentId)
+          currentStudent = allStudents.find((s: StudentInfo) => s.id === selectedStudentId)
         } else if (!isAdmin && user?.email) {
           // For student, fetch and match by email
           const allStudentsRes = await apiCall('/students')
@@ -233,7 +233,7 @@ export default function Enrollment() {
               courseId: s.course_id || s.courseId
             })
           )
-          currentStudent = allStudentsList.find((s) => s.email === user.email)
+          currentStudent = allStudentsList.find((s: StudentInfo) => s.email === user.email)
         }
 
         if (!currentStudent) {
