@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } from 'fastify';
 import { Grades } from '../types/grades';
-import { createGrade, getAllGrades, getGradeById, getGradesByStudentId, updateGrade, deleteGrade, InputGrades } from '../service/gradesService';
+import { createGrade, getAllGrades, getGradeById, getGradesByStudentId, getGradeAuditLogsByStudentId, updateGrade, deleteGrade, InputGrades } from '../service/gradesService';
 import pool from '../db/connection';
 
 async function gradesRoutes(
@@ -48,6 +48,12 @@ async function gradesRoutes(
   fastify.get('/students/:studentID/grades', async (req: FastifyRequest, _reply: FastifyReply) => {
     const { studentID } = req.params as { studentID: string };
     return getGradesByStudentId(studentID);
+  });
+
+  // GET grade audit logs by student ID
+  fastify.get('/students/:studentID/grade-audit-logs', async (req: FastifyRequest, _reply: FastifyReply) => {
+    const { studentID } = req.params as { studentID: string };
+    return getGradeAuditLogsByStudentId(studentID);
   });
 
   // POST create a new grade record (or upsert)

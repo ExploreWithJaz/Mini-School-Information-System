@@ -44,6 +44,20 @@ interface Grade {
   updatedAt: string;
 }
 
+interface GradeAuditLog {
+  id: string;
+  studentID: string;
+  subjectID: string;
+  gradeID: string;
+  fieldEdited: string;
+  oldValue: string | null;
+  newValue: string | null;
+  editedByUserID: string;
+  editedByEmail: string | null;
+  editedAt: string;
+  createdAt: string;
+}
+
 interface CourseOption {
   id: string;
   code: string;
@@ -71,12 +85,12 @@ export default function Grades() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [courses, setCourses] = useState<CourseOption[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [subjectMap, setSubjectMap] = useState<{ [key: string]: string }>({});
   const [subjectCodeMap, setSubjectCodeMap] = useState<{ [key: string]: string }>({});
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isGradesModalOpen, setIsGradesModalOpen] = useState(false);
   const [gradesLoading, setGradesLoading] = useState(false);
+  const [auditLogsLoading, setAuditLogsLoading] = useState(false);
   const [editingGradeId, setEditingGradeId] = useState<string | null>(null);
   const [editingRemarks, setEditingRemarks] = useState<{ [key: string]: string }>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -89,6 +103,7 @@ export default function Grades() {
     remarks: "",
     subjectId: ""
   });
+  const [auditLogs, setAuditLogs] = useState<GradeAuditLog[]>([]);
 
   // Fetch students
   const fetchStudents = async (page = 1) => {
@@ -101,7 +116,7 @@ export default function Grades() {
       if (search) params.append("search", search);
       if (courseId) params.append("courseId", courseId);
 
-      const response = await apiCall(`/students?${params.toString()}`, { token });
+      const response = await apiCall(`/students?${params.toString()}`, { token: token ?? undefined });
 
       const mappedStudents: Student[] = (response.data as StudentApi[]).map((s) => ({
         id: s.id,
@@ -128,15 +143,15 @@ export default function Grades() {
   const fetchGradesForStudent = async (studentId: string) => {
     try {
       setGradesLoading(true);
-      const data = await apiCall(`/students/${studentId}/grades`, { token });
+      const data = await apiCall(`/students/${studentId}/grades`, { token: token ?? undefined });
       
       // Convert string numeric fields to numbers
-      const convertedGrades = (data as any[]).map((g: any) => ({
+      const convertedGrades = (data as Grade[]).map((g) => ({
         ...g,
-        prelim: typeof g.prelim === 'string' ? parseFloat(g.prelim) : g.prelim,
-        midterm: typeof g.midterm === 'string' ? parseFloat(g.midterm) : g.midterm,
-        finals: typeof g.finals === 'string' ? parseFloat(g.finals) : g.finals,
-        finalGrade: typeof g.finalGrade === 'string' ? parseFloat(g.finalGrade) : g.finalGrade
+        prelim: Number(g.prelim),
+        midterm: Number(g.midterm),
+        finals: Number(g.finals),
+        finalGrade: Number(g.finalGrade)
       }));
       
       setGrades(convertedGrades);
@@ -151,41 +166,27 @@ export default function Grades() {
     }
   };
 
+  // Fetch audit logs for selected student
+  const fetchAuditLogsForStudent = async (studentId: string) => {
+    try {
+      setAuditLogsLoading(true);
+      const data = await apiCall(`/students/${studentId}/grade-audit-logs`, { token: token ?? undefined });
+      setAuditLogs(data as GradeAuditLog[]);
+    } catch {
+      setAuditLogs([]);
+    } finally {
+      setAuditLogsLoading(false);
+    }
+  };
+
   // Handle view grades
   const handleViewGrades = async (student: Student) => {
     setSelectedStudent(student);
     setIsGradesModalOpen(true);
-    await fetchGradesForStudent(student.id);
-  };
-
-  // Update remarks
-  const handleUpdateRemarks = async (gradeId: string) => {
-    if (!selectedStudent) return;
-
-    try {
-      setIsSaving(true);
-      await apiCall(`/grades/${gradeId}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          remarks: editingRemarks[gradeId] || ""
-        }),
-        token
-      });
-
-      // Update local state
-      setGrades((prev) =>
-        prev.map((g) =>
-          g.id === gradeId ? { ...g, remarks: editingRemarks[gradeId] || "" } : g
-        )
-      );
-
-      setEditingGradeId(null);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update remarks");
-    } finally {
-      setIsSaving(false);
-    }
+    await Promise.all([
+      fetchGradesForStudent(student.id),
+      fetchAuditLogsForStudent(student.id)
+    ]);
   };
 
   const handleDeleteGrade = async (gradeId: string) => {
@@ -195,7 +196,7 @@ export default function Grades() {
     setIsSaving(true);
     await apiCall(`/grades/${gradeId}`, {
       method: "DELETE",
-      token
+      token: token ?? undefined
     });
 
     // Update local state
@@ -233,9 +234,11 @@ export default function Grades() {
           prelim,
           midterm,
           finals,
-          finalGrade
+          finalGrade,
+          remarks: editingRemarks[gradeId] ?? grade.remarks,
+          encodedByUserID: user?.id
         }),
-        token
+        token: token ?? undefined
       });
 
       // Update local state
@@ -253,6 +256,15 @@ export default function Grades() {
         delete newState[gradeId];
         return newState;
       });
+      setEditingRemarks((prev) => {
+        const newState = { ...prev };
+        delete newState[gradeId];
+        return newState;
+      });
+
+      if (selectedStudent) {
+        await fetchAuditLogsForStudent(selectedStudent.id);
+      }
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update grades");
@@ -280,12 +292,13 @@ export default function Grades() {
       fetchCourses();
       fetchSubjects();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, user, token]);
 
   // Fetch courses
   const fetchCourses = async () => {
     try {
-      const response = await apiCall("/courses", { token });
+      const response = await apiCall("/courses", { token: token ?? undefined });
       setCourses(
         (response as Array<{ id: string; code: string; name: string }>).map(
           (course) => ({
@@ -303,22 +316,23 @@ export default function Grades() {
   // Fetch subjects
   const fetchSubjects = async () => {
     try {
-      const response = await apiCall("/subjects", { token });
+      const response = await apiCall("/subjects", { token: token ?? undefined });
       // Handle both direct array and wrapped response
-      const subjectsData = Array.isArray(response) ? response : (response.data || []);
-      setSubjects(subjectsData);
+      const wrappedResponse = response as { data?: Subject[] };
+      const subjectsData: Subject[] = Array.isArray(response)
+        ? (response as Subject[])
+        : (wrappedResponse.data || []);
       
       // Create a map of subject ID to title and code for quick lookup
       const titleMap: { [key: string]: string } = {};
       const codeMap: { [key: string]: string } = {};
-      subjectsData.forEach((subject: any) => {
+      subjectsData.forEach((subject) => {
         titleMap[subject.id] = subject.title;
         codeMap[subject.id] = subject.code;
       });
       setSubjectMap(titleMap);
       setSubjectCodeMap(codeMap);
     } catch {
-      setSubjects([]);
       setSubjectMap({});
       setSubjectCodeMap({});
     }
@@ -330,6 +344,7 @@ export default function Grades() {
       fetchStudents(1);
     }, 300);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, courseId]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -357,6 +372,36 @@ export default function Grades() {
         month: "short",
         day: "numeric"
       });
+  };
+
+  const formatDateTime = (date: string) => {
+    const parsed = new Date(date);
+    return Number.isNaN(parsed.getTime())
+      ? "N/A"
+      : parsed.toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+  };
+
+  const getFieldLabel = (field: string) => {
+    switch (field) {
+      case "prelim":
+        return "Prelim";
+      case "midterm":
+        return "Midterm";
+      case "finals":
+        return "Finals";
+      case "final_grade":
+        return "Final Grade";
+      case "remarks":
+        return "Remarks";
+      default:
+        return field;
+    }
   };
 
   if (authLoading) {
@@ -543,6 +588,7 @@ export default function Grades() {
           setIsGradesModalOpen(false);
           setSelectedStudent(null);
           setGrades([]);
+          setAuditLogs([]);
           setEditingGradeId(null);
           setEditingRemarks({});
           setEditingGrades({});
@@ -887,6 +933,48 @@ export default function Grades() {
                 </div>
               </div>
             )}
+
+            {/* Audit Log */}
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <div className="px-4 py-3 bg-gray-100 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900">Grade Audit History</h3>
+                <span className="text-xs text-gray-500">{auditLogs.length} change{auditLogs.length === 1 ? "" : "s"}</span>
+              </div>
+              {auditLogsLoading ? (
+                <div className="p-4 text-sm text-gray-500">Loading audit logs...</div>
+              ) : auditLogs.length === 0 ? (
+                <div className="p-4 text-sm text-gray-500">No audit logs found for this student.</div>
+              ) : (
+                <div className="max-h-64 overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+                      <tr>
+                        <th className="px-4 py-2 text-left font-semibold text-gray-700">Edited At</th>
+                        <th className="px-4 py-2 text-left font-semibold text-gray-700">Edited By</th>
+                        <th className="px-4 py-2 text-left font-semibold text-gray-700">Subject</th>
+                        <th className="px-4 py-2 text-left font-semibold text-gray-700">Field</th>
+                        <th className="px-4 py-2 text-left font-semibold text-gray-700">Old Value</th>
+                        <th className="px-4 py-2 text-left font-semibold text-gray-700">New Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditLogs.map((log) => (
+                        <tr key={log.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="px-4 py-2 text-gray-600">{formatDateTime(log.editedAt)}</td>
+                          <td className="px-4 py-2 text-gray-700 font-medium">
+                            {log.editedByEmail || log.editedByUserID}
+                          </td>
+                          <td className="px-4 py-2 text-gray-600">{subjectCodeMap[log.subjectID] || subjectMap[log.subjectID] || log.subjectID}</td>
+                          <td className="px-4 py-2 text-gray-700">{getFieldLabel(log.fieldEdited)}</td>
+                          <td className="px-4 py-2 text-gray-600">{log.oldValue ?? "-"}</td>
+                          <td className="px-4 py-2 text-gray-700 font-medium">{log.newValue ?? "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </Modal>
