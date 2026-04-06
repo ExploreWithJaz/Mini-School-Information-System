@@ -30,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null)
   const router = useRouter()
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+  const API_URL = process.env.NEXT_PUBLIC_API_URL
 
   // Load token from localStorage on mount
   useEffect(() => {
