@@ -1,6 +1,6 @@
 import pool from './db/connection';
 import { Pool } from 'pg';
-import { createUser } from './service/usersService';
+import { createUser, getUserByEmail } from './service/usersService';
 import { createCourse } from './service/courseService';
 import { createSubject } from './service/subjectsService';
 import { createStudent } from './service/studentsService';
@@ -112,9 +112,16 @@ async function seed() {
 
     // 1. CREATE ADMIN USER
     console.log('\n1. Creating admin user...');
-    const admin = await createUser(ADMIN_CREDENTIALS);
-    console.log(`✓ Admin user created: ${ADMIN_CREDENTIALS.email}`);
-    console.log(`  Password: ${ADMIN_CREDENTIALS.password}`);
+    const existingAdmin = await getUserByEmail(ADMIN_CREDENTIALS.email);
+    let admin;
+    if (existingAdmin) {
+      console.log(`✓ Admin user already exists: ${ADMIN_CREDENTIALS.email}`);
+      admin = existingAdmin;
+    } else {
+      admin = await createUser(ADMIN_CREDENTIALS);
+      console.log(`✓ Admin user created: ${ADMIN_CREDENTIALS.email}`);
+      console.log(`  Password: ${ADMIN_CREDENTIALS.password}`);
+    }
 
     // 2. CREATE COURSES (4 courses)
     console.log('\n2. Creating courses...');
