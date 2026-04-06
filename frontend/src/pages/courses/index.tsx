@@ -38,6 +38,10 @@ export default function Courses() {
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set())
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingField, setEditingField] = useState<string | null>(null)
+  const [editingValue, setEditingValue] = useState<string>('')
+  const [isSavingInline, setIsSavingInline] = useState(false)
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -251,6 +255,73 @@ export default function Courses() {
     }
   }
 
+  const startInlineEdit = (courseId: string, field: string, currentValue: string) => {
+    setEditingId(courseId)
+    setEditingField(field)
+    setEditingValue(currentValue)
+  }
+
+  const cancelInlineEdit = () => {
+      setEditingId(null)
+      setEditingField(null)
+      setEditingValue('')
+  }
+
+  const saveInlineEdit = async (courseId: string, field: string) => {
+      if (!editingValue.trim()) {
+          setError(`${field} cannot be empty`)
+          return
+      }
+
+      try {
+          setIsSavingInline(true)
+          setError(null)
+
+          const course = courses.find(c => c.id === courseId)
+          if (!course) return
+
+            const updatePayload: { code: string; name: string; description: string } = {
+              code: field === 'code' ? editingValue.trim() : course.code,
+              name: field === 'name' ? editingValue.trim() : course.name,
+              description: field === 'description' ? editingValue.trim() : course.description
+          }
+
+          const updated = (await apiCall(`/courses/${courseId}`, {
+              method: 'PATCH',
+              body: JSON.stringify(updatePayload)
+          })) as CourseApi
+
+          setCourses((prev) =>
+              prev.map((item) =>
+                  item.id === courseId
+                      ? {
+                          id: updated.id,
+                          code: updated.code,
+                          name: updated.name,
+                          description: updated.description ?? 'No description provided',
+                          createdAt: updated.created_at,
+                          updatedAt: updated.updated_at
+                      }
+                      : item
+              )
+          )
+          
+          cancelInlineEdit()
+      } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to update course')
+      } finally {
+          setIsSavingInline(false)
+      }
+  }
+
+  const handleInlineKeyDown = (e: React.KeyboardEvent, courseId: string, field: string) => {
+      if (e.key === 'Enter') {
+          saveInlineEdit(courseId, field)
+      } else if (e.key === 'Escape') {
+          cancelInlineEdit()
+      }
+  }
+
   return (
     <main className='min-h-screen bg-slate-50 p-6 md:p-8'>
       <div className='mx-auto space-y-6'>
@@ -328,8 +399,48 @@ export default function Courses() {
                   />
                   <div className='flex items-start justify-between gap-3'>
                     <div>
-                      <p className='text-xs font-semibold tracking-wide text-slate-500'>{course.code}</p>
-                      <h2 className='mt-1 text-base font-semibold text-slate-900'>{course.name}</h2>
+                      <p className='text-xs font-semibold tracking-wide text-slate-500'>
+                        {editingId === course.id && editingField === 'code' ? (
+                          <input
+                            type='text'
+                            autoFocus
+                            value={editingValue}
+                            onChange={(e) => setEditingValue(e.target.value)}
+                            onKeyDown={(e) => handleInlineKeyDown(e, course.id, 'code')}
+                            onBlur={() => saveInlineEdit(course.id, 'code')}
+                            className='w-32 rounded border border-indigo-500 px-2 py-1 text-xs outline-none'
+                          />
+                        ) : (
+                          <span
+                            onClick={() => startInlineEdit(course.id, 'code', course.code)}
+                            className='cursor-pointer hover:bg-yellow-100 rounded px-2 py-1 transition'
+                            title='Click to edit code'
+                          >
+                            {course.code}
+                          </span>
+                        )}
+                      </p>
+                      <h2 className='mt-1 text-base font-semibold text-slate-900'>
+                        {editingId === course.id && editingField === 'name' ? (
+                          <input
+                            type='text'
+                            autoFocus
+                            value={editingValue}
+                            onChange={(e) => setEditingValue(e.target.value)}
+                            onKeyDown={(e) => handleInlineKeyDown(e, course.id, 'name')}
+                            onBlur={() => saveInlineEdit(course.id, 'name')}
+                            className='w-full rounded border border-indigo-500 px-2 py-1 text-base outline-none'
+                          />
+                        ) : (
+                          <span
+                            onClick={() => startInlineEdit(course.id, 'name', course.name)}
+                            className='cursor-pointer hover:bg-yellow-100 rounded px-2 py-1 transition'
+                            title='Click to edit name'
+                          >
+                            {course.name}
+                          </span>
+                        )}
+                      </h2>
                     </div>
                     <span className='rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700'>
                       Active
@@ -355,7 +466,7 @@ export default function Courses() {
                       onClick={() => openEditModal(course)}
                       className='rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50'
                     >
-                      Edit
+                      Edit All
                     </button>
                     <button
                       type='button'

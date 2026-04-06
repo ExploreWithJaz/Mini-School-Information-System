@@ -78,6 +78,10 @@ export default function Students() {
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set())
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingField, setEditingField] = useState<string | null>(null)
+  const [editingValue, setEditingValue] = useState<string>('')
+  const [isSavingInline, setIsSavingInline] = useState(false)
 
   const fetchStudents = async (page = 1) => {
     try {
@@ -345,6 +349,65 @@ STU003,Bob,Johnson,bob.johnson@example.com,2000-03-10,COURSE_ID_HERE`
     document.body.removeChild(element)
   }
 
+  const startInlineEdit = (studentId: string, field: string, currentValue: string) => {
+    setEditingId(studentId)
+    setEditingField(field)
+    setEditingValue(currentValue)
+  }
+
+  const cancelInlineEdit = () => {
+      setEditingId(null)
+      setEditingField(null)
+      setEditingValue('')
+  }
+
+  const saveInlineEdit = async (studentId: string, field: string) => {
+      if (!editingValue.trim()) {
+          setError(`${field} cannot be empty`)
+          return
+      }
+
+      try {
+          setIsSavingInline(true)
+          setError(null)
+
+          const student = students.find(s => s.id === studentId)
+          if (!student) return
+
+          const updatePayload: any = {
+              studentNumber: field === 'studentNumber' ? editingValue.trim() : student.studentNumber,
+              firstName: field === 'firstName' ? editingValue.trim() : student.firstName,
+              lastName: field === 'lastName' ? editingValue.trim() : student.lastName,
+              email: field === 'email' ? editingValue.trim() : student.email,
+              birthDate: student.birthDate,
+              courseId: student.courseId
+          }
+
+          const updated = (await apiCall(`/students/${studentId}`, {
+              method: 'PATCH',
+              body: JSON.stringify(updatePayload)
+          })) as Student
+
+          setStudents((prev) =>
+              prev.map((item) => (item.id === studentId ? updated : item))
+          )
+          
+          cancelInlineEdit()
+      } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to update student')
+      } finally {
+          setIsSavingInline(false)
+      }
+  }
+
+  const handleInlineKeyDown = (e: React.KeyboardEvent, studentId: string, field: string) => {
+      if (e.key === 'Enter') {
+          saveInlineEdit(studentId, field)
+      } else if (e.key === 'Escape') {
+          cancelInlineEdit()
+      }
+  }
+
   return (
     <section className='bg-[#f5f6fb] min-h-screen p-5'>
       <div className='mb-6'>
@@ -452,7 +515,8 @@ STU003,Bob,Johnson,bob.johnson@example.com,2000-03-10,COURSE_ID_HERE`
                       />
                     </th>
                     <th className='text-left text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3'>Student Number</th>
-                    <th className='text-left text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3'>Full Name</th>
+                    <th className='text-left text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3'>First Name</th>
+                    <th className='text-left text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3'>Last Name</th>
                     <th className='text-left text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3'>Email</th>
                     <th className='text-left text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3'>Date of Birth</th>
                     <th className='text-center text-[10px] font-medium uppercase tracking-widest text-gray-400 px-6 py-3'>Status</th>
@@ -462,51 +526,139 @@ STU003,Bob,Johnson,bob.johnson@example.com,2000-03-10,COURSE_ID_HERE`
                 <tbody>
                   {students.map((student) => (
                     <tr key={student.id} className='border-b border-gray-50 hover:bg-gray-50 transition-colors'>
-                      <td className='text-center px-4 py-4'>
-                        <input
-                          type='checkbox'
-                          checked={selectedStudentIds.has(student.id)}
-                          onChange={(e) => handleSelectStudent(student.id, e.target.checked)}
-                          className='w-4 h-4 cursor-pointer'
-                        />
-                      </td>
-                      <td className='px-6 py-4 text-xs font-medium text-gray-700'>
-                        {student.studentNumber}
-                      </td>
-                      <td className='px-6 py-4 text-sm text-gray-800 font-medium'>
-                        {student.firstName} {student.lastName}
-                      </td>
-                      <td className='px-6 py-4 text-sm text-gray-600'>
-                        {student.email}
-                      </td>
-                      <td className='px-6 py-4 text-sm text-gray-600'>
-                        {formatDate(student.birthDate)}
-                      </td>
-                      <td className='px-6 py-4 text-center'>
-                        <span className='inline-block text-[11px] font-medium px-3 py-1 rounded-full bg-green-50 text-green-700 border border-green-100'>
-                          Active
-                        </span>
-                      </td>
-                      <td className='px-6 py-4 text-center flex flex-row items-center justify-center gap-2'>
-                        <button
-                          type='button'
-                          onClick={() => openEditModal(student)}
-                          className='bg-blue-300 p-0.5 rounded-sm cursor-pointer'
-                        >
-                          <svg xmlns='http://www.w3.org/2000/svg' height='20px' viewBox='0 -960 960 960' width='20px' fill='#2854C5'>
-                            <path d='M216-216h51l375-375-51-51-375 375v51Zm-72 72v-153l498-498q11-11 23.84-16 12.83-5 27-5 14.16 0 27.16 5t24 16l51 51q11 11 16 24t5 26.54q0 14.45-5.02 27.54T795-642L297-144H144Zm600-549-51-51 51 51Zm-127.95 76.95L591-642l51 51-25.95-25.05Z'/></svg>
-                        </button>
+                        <td className='text-center px-4 py-4'>
+                            <input
+                                type='checkbox'
+                                checked={selectedStudentIds.has(student.id)}
+                                onChange={(e) => handleSelectStudent(student.id, e.target.checked)}
+                                className='w-4 h-4 cursor-pointer'
+                            />
+                        </td>
+                        
+                        {/* STUDENT NUMBER - INLINE EDITABLE */}
+                        <td className='px-6 py-4 text-xs font-medium text-gray-700'>
+                            {editingId === student.id && editingField === 'studentNumber' ? (
+                                <input
+                                    type='text'
+                                    autoFocus
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    onKeyDown={(e) => handleInlineKeyDown(e, student.id, 'studentNumber')}
+                                    onBlur={() => saveInlineEdit(student.id, 'studentNumber')}
+                                    className='w-24 rounded border border-indigo-500 px-2 py-1 text-xs outline-none'
+                                />
+                            ) : (
+                                <span
+                                    onClick={() => startInlineEdit(student.id, 'studentNumber', student.studentNumber)}
+                                    className='cursor-pointer hover:bg-yellow-100 rounded px-2 py-1 transition'
+                                    title='Click to edit'
+                                >
+                                    {student.studentNumber}
+                                </span>
+                            )}
+                        </td>
+                        
+                        {/* FIRST NAME - INLINE EDITABLE */}
+                        <td className='px-6 py-4 text-sm text-gray-800 font-medium'>
+                            {editingId === student.id && editingField === 'firstName' ? (
+                                <input
+                                    type='text'
+                                    autoFocus
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    onKeyDown={(e) => handleInlineKeyDown(e, student.id, 'firstName')}
+                                    onBlur={() => saveInlineEdit(student.id, 'firstName')}
+                                    className='w-32 rounded border border-indigo-500 px-2 py-1 text-sm outline-none'
+                                />
+                            ) : (
+                                <span
+                                    onClick={() => startInlineEdit(student.id, 'firstName', student.firstName)}
+                                    className='cursor-pointer hover:bg-yellow-100 rounded px-2 py-1 transition'
+                                    title='Click to edit'
+                                >
+                                    {student.firstName}
+                                </span>
+                            )}
+                        </td>
+                        
+                        {/* LAST NAME - INLINE EDITABLE */}
+                        <td className='px-6 py-4 text-sm text-gray-800 font-medium'>
+                            {editingId === student.id && editingField === 'lastName' ? (
+                                <input
+                                    type='text'
+                                    autoFocus
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    onKeyDown={(e) => handleInlineKeyDown(e, student.id, 'lastName')}
+                                    onBlur={() => saveInlineEdit(student.id, 'lastName')}
+                                    className='w-32 rounded border border-indigo-500 px-2 py-1 text-sm outline-none'
+                                />
+                            ) : (
+                                <span
+                                    onClick={() => startInlineEdit(student.id, 'lastName', student.lastName)}
+                                    className='cursor-pointer hover:bg-yellow-100 rounded px-2 py-1 transition'
+                                    title='Click to edit'
+                                >
+                                    {student.lastName}
+                                </span>
+                            )}
+                        </td>
+                        
+                        {/* EMAIL - INLINE EDITABLE */}
+                        <td className='px-6 py-4 text-sm text-gray-600'>
+                            {editingId === student.id && editingField === 'email' ? (
+                                <input
+                                    type='email'
+                                    autoFocus
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    onKeyDown={(e) => handleInlineKeyDown(e, student.id, 'email')}
+                                    onBlur={() => saveInlineEdit(student.id, 'email')}
+                                    className='w-40 rounded border border-indigo-500 px-2 py-1 text-sm outline-none'
+                                />
+                            ) : (
+                                <span
+                                    onClick={() => startInlineEdit(student.id, 'email', student.email)}
+                                    className='cursor-pointer hover:bg-yellow-100 rounded px-2 py-1 transition'
+                                    title='Click to edit'
+                                >
+                                    {student.email}
+                                </span>
+                            )}
+                        </td>
+                        
+                        <td className='px-6 py-4 text-sm text-gray-600'>
+                            {formatDate(student.birthDate)}
+                        </td>
+                        
+                        <td className='px-6 py-4 text-center'>
+                            <span className='inline-block text-[11px] font-medium px-3 py-1 rounded-full bg-green-50 text-green-700 border border-green-100'>
+                                Active
+                            </span>
+                        </td>
+                        
+                        <td className='px-6 py-4 text-center flex flex-row items-center justify-center gap-2'>
+                            <button
+                                type='button'
+                                onClick={() => openEditModal(student)}
+                                className='bg-blue-300 p-0.5 rounded-sm cursor-pointer'
+                                title='Edit all fields'
+                            >
+                                <svg xmlns='http://www.w3.org/2000/svg' height='20px' viewBox='0 -960 960 960' width='20px' fill='#2854C5'>
+                                    <path d='M216-216h51l375-375-51-51-375 375v51Zm-72 72v-153l498-498q11-11 23.84-16 12.83-5 27-5 14.16 0 27.16 5t24 16l51 51q11 11 16 24t5 26.54q0 14.45-5.02 27.54T795-642L297-144H144Zm600-549-51-51 51 51Zm-127.95 76.95L591-642l51 51-25.95-25.05Z'/></svg>
+                            </button>
 
-                        <button
-                          type='button'
-                          onClick={() => openDeleteModal(student)}
-                          className='bg-red-300 p-0.5 rounded-sm cursor-pointer'
-                        >
-                          <svg xmlns='http://www.w3.org/2000/svg' height='20px' viewBox='0 -960 960 960' width='20px' fill='#8C1A10'>
-                            <path d='M312-144q-29.7 0-50.85-21.15Q240-186.3 240-216v-480h-48v-72h192v-48h192v48h192v72h-48v479.57Q720-186 698.85-165T648-144H312Zm336-552H312v480h336v-480ZM384-288h72v-336h-72v336Zm120 0h72v-336h-72v336ZM312-696v480-480Z' />
-                          </svg>
-                        </button>
-                      </td>
+                            <button
+                                type='button'
+                                onClick={() => openDeleteModal(student)}
+                                className='bg-red-300 p-0.5 rounded-sm cursor-pointer'
+                                title='Delete student'
+                            >
+                                <svg xmlns='http://www.w3.org/2000/svg' height='20px' viewBox='0 -960 960 960' width='20px' fill='#8C1A10'>
+                                    <path d='M312-144q-29.7 0-50.85-21.15Q240-186.3 240-216v-480h-48v-72h192v-48h192v48h192v72h-48v479.57Q720-186 698.85-165T648-144H312Zm336-552H312v480h336v-480ZM384-288h72v-336h-72v336Zm120 0h72v-336h-72v336ZM312-696v480-480Z' />
+                                </svg>
+                            </button>
+                        </td>
                     </tr>
                   ))}
                 </tbody>
@@ -812,7 +964,7 @@ STU003,Bob,Johnson,bob.johnson@example.com,2000-03-10,COURSE_ID_HERE`
           </div>
         )}
       </Modal>
-            <Modal
+      <Modal
         isOpen={bulkDeleteOpen}
         onClose={() => {
           if (isBulkDeleting) return

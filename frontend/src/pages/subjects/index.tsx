@@ -87,6 +87,10 @@ export default function Subjects() {
     const [selectedSubjectIds, setSelectedSubjectIds] = useState<Set<string>>(new Set())
     const [isBulkDeleting, setIsBulkDeleting] = useState(false)
     const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const [editingField, setEditingField] = useState<string | null>(null)
+    const [editingValue, setEditingValue] = useState<string>('')
+    const [isSavingInline, setIsSavingInline] = useState(false)
 
     useEffect(() => {
         const fetchData = async () => {
@@ -485,6 +489,84 @@ export default function Subjects() {
       }
     }
 
+    const startInlineEdit = (subjectId: string, field: string, currentValue: string) => {
+        setEditingId(subjectId)
+        setEditingField(field)
+        setEditingValue(currentValue)
+    }
+
+    const cancelInlineEdit = () => {
+        setEditingId(null)
+        setEditingField(null)
+        setEditingValue('')
+    }
+
+    const saveInlineEdit = async (subjectId: string, field: string) => {
+        if (!editingValue.trim()) {
+            setError(`${field} cannot be empty`)
+            return
+        }
+
+        try {
+            setIsSavingInline(true)
+            setError(null)
+
+            const subject = subjects.find(s => s.id === subjectId)
+            if (!subject) return
+
+            const updatePayload: Partial<SubjectForm> = {}
+            
+            if (field === 'code') {
+                updatePayload.code = editingValue.trim()
+            } else if (field === 'title') {
+                updatePayload.title = editingValue.trim()
+            } else if (field === 'units') {
+                updatePayload.units = Number(editingValue)
+            }
+
+            const updated = (await apiCall(`/subjects/${subjectId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    code: updatePayload.code ?? subject.code,
+                    title: updatePayload.title ?? subject.title,
+                    units: updatePayload.units ?? subject.units,
+                    courseID: subject.courseID
+                })
+            })) as SubjectApi
+
+            setSubjects((prev) =>
+                prev.map((item) =>
+                    item.id === subjectId
+                        ? {
+                            id: updated.id,
+                            courseID: updated.courseID ?? updated.course_id ?? '',
+                            code: updated.code,
+                            title: updated.title,
+                            units: Number(updated.units) || 0,
+                            createdAt: updated.createdAt ?? updated.created_at ?? '',
+                            updatedAt: updated.updatedAt ?? updated.updated_at ?? ''
+                        }
+                        : item
+                )
+            )
+            
+            cancelInlineEdit()
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to update subject')
+        } finally {
+            setIsSavingInline(false)
+        }
+    }
+
+    // Handle key press (Enter to save, Escape to cancel)
+    const handleInlineKeyDown = (e: React.KeyboardEvent, subjectId: string, field: string) => {
+        if (e.key === 'Enter') {
+            saveInlineEdit(subjectId, field)
+        } else if (e.key === 'Escape') {
+            cancelInlineEdit()
+        }
+    }
+
     return (
         <main className='min-h-screen bg-slate-50 p-6 md:p-8'>
             <div className='mx-auto space-y-6'>
@@ -596,18 +678,82 @@ export default function Subjects() {
                                                     className='w-4 h-4 cursor-pointer'
                                                 />
                                             </td>
+                                            
+                                            {/* CODE FIELD - INLINE EDITABLE */}
                                             <td className='px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900'>
-                                                {subject.code}
+                                                {editingId === subject.id && editingField === 'code' ? (
+                                                    <input
+                                                        type='text'
+                                                        autoFocus
+                                                        value={editingValue}
+                                                        onChange={(e) => setEditingValue(e.target.value)}
+                                                        onKeyDown={(e) => handleInlineKeyDown(e, subject.id, 'code')}
+                                                        onBlur={() => saveInlineEdit(subject.id, 'code')}
+                                                        className='w-full rounded border border-indigo-500 px-2 py-1 text-sm outline-none'
+                                                    />
+                                                ) : (
+                                                    <span
+                                                        onClick={() => startInlineEdit(subject.id, 'code', subject.code)}
+                                                        className='cursor-pointer hover:bg-yellow-100 rounded px-2 py-1 transition'
+                                                        title='Click to edit'
+                                                    >
+                                                        {subject.code}
+                                                    </span>
+                                                )}
                                             </td>
+                                            
+                                            {/* TITLE FIELD - INLINE EDITABLE */}
                                             <td className='px-6 py-4 whitespace-nowrap text-sm text-slate-600'>
-                                                {subject.title}
+                                                {editingId === subject.id && editingField === 'title' ? (
+                                                    <input
+                                                        type='text'
+                                                        autoFocus
+                                                        value={editingValue}
+                                                        onChange={(e) => setEditingValue(e.target.value)}
+                                                        onKeyDown={(e) => handleInlineKeyDown(e, subject.id, 'title')}
+                                                        onBlur={() => saveInlineEdit(subject.id, 'title')}
+                                                        className='w-full rounded border border-indigo-500 px-2 py-1 text-sm outline-none'
+                                                    />
+                                                ) : (
+                                                    <span
+                                                        onClick={() => startInlineEdit(subject.id, 'title', subject.title)}
+                                                        className='cursor-pointer hover:bg-yellow-100 rounded px-2 py-1 transition'
+                                                        title='Click to edit'
+                                                    >
+                                                        {subject.title}
+                                                    </span>
+                                                )}
                                             </td>
+
+                                            {/* COURSE FIELD - READ ONLY */}
                                             <td className='px-6 py-4 whitespace-nowrap text-sm text-slate-600'>
                                                 {getCourseLabel(subject.courseID)}
                                             </td>
+                                            
+                                            {/* UNITS FIELD - INLINE EDITABLE */}
                                             <td className='px-6 py-4 whitespace-nowrap text-sm text-slate-600'>
-                                                {subject.units}
+                                                {editingId === subject.id && editingField === 'units' ? (
+                                                    <input
+                                                        type='number'
+                                                        autoFocus
+                                                        value={editingValue}
+                                                        onChange={(e) => setEditingValue(e.target.value)}
+                                                        onKeyDown={(e) => handleInlineKeyDown(e, subject.id, 'units')}
+                                                        onBlur={() => saveInlineEdit(subject.id, 'units')}
+                                                        className='w-16 rounded border border-indigo-500 px-2 py-1 text-sm outline-none'
+                                                    />
+                                                ) : (
+                                                    <span
+                                                        onClick={() => startInlineEdit(subject.id, 'units', String(subject.units))}
+                                                        className='cursor-pointer hover:bg-yellow-100 rounded px-2 py-1 transition'
+                                                        title='Click to edit'
+                                                    >
+                                                        {subject.units}
+                                                    </span>
+                                                )}
                                             </td>
+
+                                            {/* Rest of your cells... */}
                                             <td className='px-6 py-4 whitespace-nowrap text-sm'>
                                                 <span className='inline-block rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700'>
                                                     {getPrerequisiteCount(subject.id)}
@@ -624,7 +770,7 @@ export default function Subjects() {
                                                     onClick={() => openEditModal(subject)}
                                                     className='text-indigo-600 hover:text-indigo-800 mr-4'
                                                 >
-                                                    Edit
+                                                    Edit All
                                                 </button>
                                                 <button
                                                     type='button'
