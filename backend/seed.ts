@@ -120,6 +120,27 @@ async function initializeDatabase() {
         reserved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(student_id, subject_id)
       );
+
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        student_id UUID NOT NULL,
+        subject_id UUID NOT NULL,
+        grade_id UUID NOT NULL,
+        field_edited VARCHAR(50) NOT NULL,
+        old_value VARCHAR(255),
+        new_value VARCHAR(255),
+        edited_by_user_id UUID NOT NULL,
+        edited_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
+        FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE,
+        FOREIGN KEY (grade_id) REFERENCES grades(id) ON DELETE CASCADE,
+        FOREIGN KEY (edited_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_student_id ON audit_logs(student_id);
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_grade_id ON audit_logs(grade_id);
     `);
     
     console.log('✓ Database tables initialized\n');
