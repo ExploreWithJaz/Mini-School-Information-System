@@ -17,8 +17,11 @@ export async function apiCall(
     headers.set('Content-Type', 'application/json')
   }
 
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`)
+  // Get token from options or localStorage
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('authToken') : null)
+  
+  if (authToken) {
+    headers.set('Authorization', `Bearer ${authToken}`)
   }
 
   const response = await fetch(`${API_URL}${endpoint}`, {
