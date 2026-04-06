@@ -1,36 +1,148 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mini School Information System - Frontend
 
-## Getting Started
+Next.js-based admin dashboard for managing students, courses, subjects, prerequisites, reservations, and grades. Built with React, TypeScript, and Tailwind CSS.
 
-First, run the development server:
+---
+
+## 🛠️ Setup Instructions
+
+### 1. Install Dependencies
+
+```bash
+cd frontend
+npm install
+```
+
+### 2. Configure Environment Variables
+
+Create `.env.local`:
+
+```bash
+cp .env.example .env.local
+```
+
+Update with backend API URL:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3001
+```
+
+### 3. Start Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Open http://localhost:3000 in browser
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 4. Login
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Email: `admin@schoolsystem.com`
+- Password: `AdminSecure2024!`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 📱 Available Routes
 
-To learn more about Next.js, take a look at the following resources:
+| Page           | URL               | Features                                         |
+|----------------|-------------------|--------------------------------------------------|
+| Login          | `/login`          | JWT authentication                               |
+| Dashboard      | `/dashboard`      | Overview (protected)                             |
+| Students       | `/students`       | CRUD, search, filter, bulk delete, inline edit   |
+| Courses        | `/courses`        | CRUD, search, filter, bulk delete, inline edit   |
+| Subjects       | `/subjects`       | CRUD, prerequisites, bulk delete, inline edit    |
+| Grades         | `/grades`         | View/edit grades, audit history, filter          |
+| Reservations   | `/reservations`   | Subject reservations (prerequisite checked)      |
+| Enrollment     | `/enrollment`     | Student enrollment management                    |
+| Admin          | `/adminDashboard` | Admin controls                                   |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+_All dashboard routes are protected. Unauthenticated users are redirected to `/login`._
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 🔐 Route Protection
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Pages use the `useRouteProtection` hook to enforce authentication and roles:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```tsx
+import { useRouteProtection } from '@/hooks/useRouteProtection'
+
+export default function AdminDashboard() {
+  const { hasAccess, loading } = useRouteProtection({ requiredRoles: ['Admin'] })
+  if (loading) return <div>Loading...</div>
+  if (!hasAccess) return null
+  return <section>{/* Page content */}</section>
+}
+```
+
+---
+
+## 📊 Key Features
+
+- Search & filter across multiple fields
+- Inline editing with validation
+- Bulk actions (delete, select all)
+- CSV import for students
+- Responsive design
+
+---
+
+## 📁 Project Structure
+
+```
+frontend/
+├── src/
+│   ├── app/
+│   ├── pages/
+│   ├── components/
+│   ├── context/
+│   ├── hooks/
+│   └── lib/
+├── .env.local
+├── package.json
+├── tsconfig.json
+├── tailwind.config.ts
+└── README.md
+```
+
+---
+
+## 🚀 Build & Deploy
+
+### Build for Production
+
+```bash
+npm run build
+npm run start
+```
+
+### Deploy to Vercel
+
+1. Push to GitHub
+2. Go to https://vercel.com/new
+3. Connect GitHub & select repository
+4. Set environment variable: `NEXT_PUBLIC_API_URL=<backend-url>`
+5. Deploy
+
+---
+
+## 📦 Technologies
+
+| Layer      | Technology | Version  |
+|------------|------------|----------|
+| Framework  | Next.js    | 16.2.2   |
+| UI Library | React      | 19.2.4   |
+| Styling    | Tailwind   | 4.0      |
+| Language   | TypeScript | 5.0+     |
+
+---
+
+**Version**: 1.0.0  
+**License**: ISC
+
+---
+
+You can copy and use this as your new `README.md` for the frontend. For more info:
+- [Next.js Documentation](https://nextjs.org/docs)
+- [React Documentation](https://react.dev)
+- [Tailwind CSS](https://tailwindcss.com)
+- [TypeScript](https://www.typescriptlang.org)
